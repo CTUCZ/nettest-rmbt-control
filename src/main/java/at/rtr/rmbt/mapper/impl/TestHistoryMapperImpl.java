@@ -32,6 +32,7 @@ public class TestHistoryMapperImpl implements TestHistoryMapper {
                 .model(testHistory.getModel())
                 .networkType(testHistory.getNetworkTypeGroupName())
                 .loopUUID(FormatUtils.formatLoopUUID(testHistory.getLoopUuid()))
+                .certMode(testHistory.getCertMode())
                 .speedUploadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_UPLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedUpload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .speedDownloadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_DOWNLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedDownload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .pingClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount))

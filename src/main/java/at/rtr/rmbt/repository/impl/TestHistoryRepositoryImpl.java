@@ -21,7 +21,7 @@ public class TestHistoryRepositoryImpl implements TestHistoryRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final static String GET_TEST_HISTORY = "SELECT DISTINCT"
-            + " t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid,"
+            + " t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid, l.cert_mode cert_mode,"
             + " COALESCE(adm.fullname, t.model) model"
             + " FROM test t"
             + " LEFT JOIN device_map adm ON adm.codename=t.model"

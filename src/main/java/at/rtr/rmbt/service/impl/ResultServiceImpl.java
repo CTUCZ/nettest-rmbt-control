@@ -8,7 +8,9 @@ import at.rtr.rmbt.exception.NotSupportedClientVersionException;
 import at.rtr.rmbt.exception.TestNotFoundException;
 import at.rtr.rmbt.mapper.TestMapper;
 import at.rtr.rmbt.model.Test;
+import at.rtr.rmbt.model.TestCertAddress;
 import at.rtr.rmbt.properties.ApplicationProperties;
+import at.rtr.rmbt.repository.LoopModeSettingsRepository;
 import at.rtr.rmbt.repository.NetworkTypeRepository;
 import at.rtr.rmbt.repository.TestRepository;
 import at.rtr.rmbt.request.ResultRequest;
@@ -17,6 +19,9 @@ import at.rtr.rmbt.utils.HeaderExtrudeUtil;
 import at.rtr.rmbt.utils.HelperFunctions;
 import com.google.common.net.InetAddresses;
 import lombok.RequiredArgsConstructor;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -32,6 +37,8 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class ResultServiceImpl implements ResultService {
 
+    private static final Logger log = LoggerFactory.getLogger(ResultServiceImpl.class);
+
     private final TestRepository testRepository;
     private final GeoLocationService geoLocationService;
     private final RadioCellService radioCellService;
@@ -43,6 +50,7 @@ public class ResultServiceImpl implements ResultService {
     private final SpeedService speedService;
     private final ApplicationProperties applicationProperties;
     private final TestMapper testMapper;
+    private final LoopModeSettingsRepository loopModeSettingsRepository;
 
     private final static Pattern MCC_MNC_PATTERN = Pattern.compile("\\d{3}-\\d+");
 
@@ -74,9 +82,34 @@ public class ResultServiceImpl implements ResultService {
         setNetworkType(test);
         setAndroidPermission(resultRequest, test);
         setSpeedAndPing(resultRequest, test);
+        processCertMode(resultRequest, test);
         Test updatedTest = testMapper.updateTestLocation(test);
         updatedTest.setStatus(getStatus(resultRequest));
         testRepository.save(updatedTest);
+    }
+
+    private void processCertMode(ResultRequest resultRequest, Test test) {
+        if (Objects.nonNull(resultRequest.getUserCertMode()) && Objects.nonNull(test.getLoopModeSettings())) {
+            log.info("UserCertMode is true for test result uuid: {}", test.getUuid());
+            test.getLoopModeSettings().setCertMode(resultRequest.getUserCertMode());
+            loopModeSettingsRepository.save(test.getLoopModeSettings());
+
+            if("DESKTOP".equals(resultRequest.getType())) {
+                log.info("Test result is from DESKTOP, saving user address...");
+                if(test.getLoopModeSettings().getTestCertAddress() == null) {
+                    test.getLoopModeSettings().setTestCertAddress(
+                        TestCertAddress.builder()
+                            .loopUuid(test.getLoopModeSettings().getLoopUuid())
+                            .address(resultRequest.getUserAddress())
+                            .amCode(resultRequest.getUserAddressAmCode())
+                            .xWgs(resultRequest.getUserAddressXWgs())
+                            .yWgs(resultRequest.getUserAddressYWgs())
+                            .build()
+                    );
+                    loopModeSettingsRepository.save(test.getLoopModeSettings());
+                }
+            }
+        }
     }
 
     private TestStatus getStatus(ResultRequest resultRequest) {

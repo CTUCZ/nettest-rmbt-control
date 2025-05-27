@@ -39,6 +39,10 @@ public class ResultRequest {
     @JsonProperty(value = "client_language")
     private final String clientLanguage;
 
+    @Schema(description = "Type of the client", example = "DESKTOP")
+    @JsonProperty(value = "type")
+    private final String type;
+
     @Schema(description = "Time of the test in millis")
     @JsonProperty(value = "time")
     private final Long time;
@@ -211,6 +215,10 @@ public class ResultRequest {
     @JsonProperty(value = "user_loop_mode")
     private final boolean loopModeEnabled;
 
+    @Schema(description = "User cert mode", example = "true")
+    @JsonProperty(value = "user_cert_mode")
+    private final Boolean userCertMode;
+
     @Schema(description = "mcc-mnc of the operator network, mobile networks only", example = "231-06")
     @JsonProperty(value = "telephony_network_operator")
     private final String telephonyNetworkOperator;
@@ -312,4 +320,20 @@ public class ResultRequest {
     @Schema(description = "Test tag added to each test, can be set in the developer mode settings")
     @JsonProperty(value = "tag")
     private final String tag;
+
+    @Schema(description = "User address for cert mode")
+    @JsonProperty(value = "user_address")
+    private final String userAddress;
+
+    @Schema(description = "User address am_code for cert mode")
+    @JsonProperty(value = "user_address_am_code")
+    private final Integer userAddressAmCode;
+
+    @Schema(description = "User address x_wgs for cert mode")
+    @JsonProperty(value = "user_address_x_wgs")
+    private final Float userAddressXWgs;
+
+    @Schema(description = "User address y_wgs for cert mode")
+    @JsonProperty(value = "user_address_y_wgs")
+    private final Float userAddressYWgs;
 }

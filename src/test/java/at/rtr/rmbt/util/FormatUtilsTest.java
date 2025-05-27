@@ -13,10 +13,10 @@ public class FormatUtilsTest {
         assertEquals("0.11",s);
 
         s = FormatUtils.formatSpeed(1111);
-        assertEquals("1.1",s);
+        assertEquals("1.11",s);
 
         s = FormatUtils.formatSpeed(11111);
-        assertEquals("11",s);
+        assertEquals("11.1",s);
 
         s = FormatUtils.formatSpeed(111111);
         assertEquals("111",s);

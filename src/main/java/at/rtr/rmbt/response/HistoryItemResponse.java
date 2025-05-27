@@ -96,4 +96,8 @@ public class HistoryItemResponse {
     @JsonProperty(value = "status")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final String status;
+
+    @JsonProperty(value = "cert_mode")
+    @Builder.Default
+    private final Boolean certMode = false;
 }
