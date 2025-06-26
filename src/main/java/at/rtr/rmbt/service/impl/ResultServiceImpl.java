@@ -89,7 +89,7 @@ public class ResultServiceImpl implements ResultService {
     }
 
     private void processCertMode(ResultRequest resultRequest, Test test) {
-        if (Objects.nonNull(resultRequest.getUserCertMode()) && Objects.nonNull(test.getLoopModeSettings())) {
+        if (resultRequest.getUserCertMode() && Objects.nonNull(test.getLoopModeSettings())) {
             log.info("UserCertMode is true for test result uuid: {}", test.getUuid());
             test.getLoopModeSettings().setCertMode(resultRequest.getUserCertMode());
             loopModeSettingsRepository.save(test.getLoopModeSettings());
