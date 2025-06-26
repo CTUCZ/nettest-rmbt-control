@@ -45,6 +45,8 @@ public class LoopModeSettings implements Serializable {
     @Column(name = "cert_mode")
     private Boolean certMode;
 
-    @OneToOne(cascade = CascadeType.ALL, mappedBy = "loopModeSettings")
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "loop_uuid", referencedColumnName = "loop_uuid", insertable = false, updatable = false)
+    @ToString.Exclude
     private TestCertAddress testCertAddress;
 }
