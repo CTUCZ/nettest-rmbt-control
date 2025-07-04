@@ -7,6 +7,7 @@ import at.rtr.rmbt.model.LoopModeSettings;
 import at.rtr.rmbt.properties.ApplicationProperties;
 import at.rtr.rmbt.repository.LoopModeSettingsRepository;
 import at.rtr.rmbt.repository.NetworkTypeRepository;
+import at.rtr.rmbt.repository.TestCertAddressRepository;
 import at.rtr.rmbt.repository.TestRepository;
 import at.rtr.rmbt.request.RadioCellRequest;
 import at.rtr.rmbt.request.RadioInfoRequest;
@@ -53,6 +54,8 @@ public class ResultServiceImplTest {
     private TestMapper testMapper;
     @MockBean
     private LoopModeSettingsRepository loopModeSettingsRepository;
+    @MockBean
+    private TestCertAddressRepository certAddressRepository;
 
     @Mock
     private HttpServletRequest httpServletRequest;
@@ -83,7 +86,7 @@ public class ResultServiceImplTest {
     public void setUp() {
         resultService = new ResultServiceImpl(testRepository, geoLocationService, radioCellService,
                 radioSignalService, cellLocationService, signalService, networkTypeRepository,
-                pingService, speedService, applicationProperties, testMapper, loopModeSettingsRepository);
+                pingService, speedService, applicationProperties, testMapper, loopModeSettingsRepository, certAddressRepository);
     }
 
     @Test

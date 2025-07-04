@@ -12,6 +12,7 @@ import at.rtr.rmbt.model.TestCertAddress;
 import at.rtr.rmbt.properties.ApplicationProperties;
 import at.rtr.rmbt.repository.LoopModeSettingsRepository;
 import at.rtr.rmbt.repository.NetworkTypeRepository;
+import at.rtr.rmbt.repository.TestCertAddressRepository;
 import at.rtr.rmbt.repository.TestRepository;
 import at.rtr.rmbt.request.ResultRequest;
 import at.rtr.rmbt.service.*;
@@ -51,6 +52,7 @@ public class ResultServiceImpl implements ResultService {
     private final ApplicationProperties applicationProperties;
     private final TestMapper testMapper;
     private final LoopModeSettingsRepository loopModeSettingsRepository;
+    private final TestCertAddressRepository certAddressRepository;
 
     private final static Pattern MCC_MNC_PATTERN = Pattern.compile("\\d{3}-\\d+");
 
@@ -97,7 +99,7 @@ public class ResultServiceImpl implements ResultService {
             if("DESKTOP".equals(resultRequest.getType())) {
                 log.info("Test result is from DESKTOP, saving user address...");
                 if(test.getLoopModeSettings().getTestCertAddress() == null) {
-                    test.getLoopModeSettings().setTestCertAddress(
+                    certAddressRepository.save(
                         TestCertAddress.builder()
                             .loopUuid(test.getLoopModeSettings().getLoopUuid())
                             .address(resultRequest.getUserAddress())
@@ -106,7 +108,6 @@ public class ResultServiceImpl implements ResultService {
                             .yWgs(resultRequest.getUserAddressYWgs())
                             .build()
                     );
-                    loopModeSettingsRepository.save(test.getLoopModeSettings());
                 }
             }
         }
