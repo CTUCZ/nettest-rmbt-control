@@ -46,7 +46,7 @@ public class LoopModeSettings implements Serializable {
     private Boolean certMode;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loop_uuid", referencedColumnName = "loop_uuid", insertable = false, updatable = false)
+    @PrimaryKeyJoinColumn
     @ToString.Exclude
     private TestCertAddress testCertAddress;
 }
