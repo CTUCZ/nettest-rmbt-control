@@ -38,11 +38,6 @@ public class TestCertAddress {
     @Column(name = "y_wgs")
     private Float yWgs;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loop_uuid", referencedColumnName = "loop_uuid", insertable = false, updatable = false, nullable = false)
-    @ToString.Exclude
-    private LoopModeSettings loopModeSettings;
-
     @Builder
     public TestCertAddress(UUID loopUuid, String address, Integer amCode, Float xWgs, Float yWgs) {
         this.loopUuid = loopUuid;
