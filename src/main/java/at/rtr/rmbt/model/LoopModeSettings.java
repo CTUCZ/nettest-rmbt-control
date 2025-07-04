@@ -1,10 +1,20 @@
 package at.rtr.rmbt.model;
 
-import lombok.*;
-
-import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 @Entity
 @Getter
@@ -44,9 +54,4 @@ public class LoopModeSettings implements Serializable {
 
     @Column(name = "cert_mode")
     private Boolean certMode;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @PrimaryKeyJoinColumn
-    @ToString.Exclude
-    private TestCertAddress testCertAddress;
 }

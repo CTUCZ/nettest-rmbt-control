@@ -98,7 +98,7 @@ public class ResultServiceImpl implements ResultService {
 
             if("DESKTOP".equals(resultRequest.getType())) {
                 log.info("Test result is from DESKTOP, saving user address...");
-                if(test.getLoopModeSettings().getTestCertAddress() == null) {
+                if(!certAddressRepository.existsById(test.getLoopModeSettings().getLoopUuid())) {
                     certAddressRepository.save(
                         TestCertAddress.builder()
                             .loopUuid(test.getLoopModeSettings().getLoopUuid())

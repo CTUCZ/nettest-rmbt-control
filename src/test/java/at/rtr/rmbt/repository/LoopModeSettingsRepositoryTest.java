@@ -24,8 +24,7 @@ public class LoopModeSettingsRepositoryTest extends AbstractRepositoryTest<LoopM
             10,
             1,
             UUID.randomUUID(),
-            false,
-            null
+            false
         );
 
         LoopModeSettings result = dao.save(loopModeSettings);
