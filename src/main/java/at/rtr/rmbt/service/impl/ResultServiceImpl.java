@@ -101,6 +101,7 @@ public class ResultServiceImpl implements ResultService {
 
             if("DESKTOP".equals(resultRequest.getType())) {
                 log.info("Test result is from DESKTOP, saving user address...");
+                log.info("Log xWgs: {}, yWgs: {}", resultRequest.getUserAddressXWgs(), resultRequest.getUserAddressYWgs());
                 if(!certAddressRepository.existsById(test.getLoopModeSettings().getLoopUuid())) {
                     certAddressRepository.save(
                         TestCertAddress.builder()
