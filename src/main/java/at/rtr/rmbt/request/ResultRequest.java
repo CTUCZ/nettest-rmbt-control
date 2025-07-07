@@ -331,9 +331,9 @@ public class ResultRequest {
 
     @Schema(description = "User address x_wgs for cert mode")
     @JsonProperty(value = "user_address_x_wgs")
-    private final Float userAddressXWgs;
+    private final Double userAddressXWgs;
 
     @Schema(description = "User address y_wgs for cert mode")
     @JsonProperty(value = "user_address_y_wgs")
-    private final Float userAddressYWgs;
+    private final Double userAddressYWgs;
 }

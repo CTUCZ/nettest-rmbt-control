@@ -29,13 +29,13 @@ public class TestCertAddress {
     private Integer amCode;
 
     @Column(name = "x_wgs")
-    private Float xWgs;
+    private Double xWgs;
 
     @Column(name = "y_wgs")
-    private Float yWgs;
+    private Double yWgs;
 
     @Builder
-    public TestCertAddress(UUID loopUuid, String address, Integer amCode, Float xWgs, Float yWgs) {
+    public TestCertAddress(UUID loopUuid, String address, Integer amCode, Double xWgs, Double yWgs) {
         this.loopUuid = loopUuid;
         this.address = address;
         this.amCode = amCode;
