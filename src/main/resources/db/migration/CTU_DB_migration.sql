@@ -1,0 +1,13 @@
+ALTER TABLE public.test_server ADD coverage bool NULL;
+ALTER TABLE public.test ADD coverage bool NULL;
+ALTER TABLE public.test ADD geom4326 public.geometry(point, 3857) NULL;
+ALTER TABLE public.test ADD geom3857 public.geometry(point, 4326) NULL;
+ALTER TABLE public.test ADD referrer varchar(2048) NULL;
+ALTER TABLE public.test ADD temperature float8 NULL;
+ALTER TABLE public.test_location ADD atraster100 varchar(16) NULL;
+ALTER TABLE public.test_location ADD atraster250 varchar(18) NULL;
+ALTER TABLE public.radio_cell ADD cell_state varchar(15) NULL;
+ALTER TABLE public.radio_cell ADD primary_data_subscription varchar(30) NULL;
+ALTER TABLE public.test ALTER COLUMN cell_location_id TYPE int8 USING cell_location_id::int8;
+ALTER TABLE public.test ALTER COLUMN cell_area_code TYPE int8 USING cell_area_code::int8;
+ALTER TABLE public.radio_cell ALTER COLUMN area_code TYPE int8 USING area_code::int8;
