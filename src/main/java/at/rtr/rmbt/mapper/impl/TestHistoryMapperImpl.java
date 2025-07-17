@@ -18,7 +18,7 @@ import java.util.TimeZone;
 @Service
 public class TestHistoryMapperImpl implements TestHistoryMapper {
     @Override
-    public HistoryItemResponse testHistoryToHistoryItemResponse(TestHistory testHistory, Integer classificationCount, Locale locale, boolean includeFailedTests) {
+    public HistoryItemResponse testHistoryToHistoryItemResponse(TestHistory testHistory, Integer classificationCount, Locale locale, boolean includeFailedTests, boolean includeCoverageFences) {
         HistoryItemResponse.HistoryItemResponseBuilder historyItemResponseBuilder = HistoryItemResponse.builder()
                 .testUUID(testHistory.getUuid())
                 .openTestUuid(testHistory.getOpenTestUuid() != null ? "O" + testHistory.getOpenTestUuid() : null)
@@ -36,9 +36,19 @@ public class TestHistoryMapperImpl implements TestHistoryMapper {
                 .speedUploadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_UPLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedUpload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .speedDownloadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_DOWNLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedDownload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .pingClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount))
-                .pingShortestClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount));
+                .pingShortestClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount))
+                .fences_count(testHistory.getFencesCount());
+
         if (includeFailedTests) {
             historyItemResponseBuilder.status(testHistory.getStatus().toLowerCase());
+        }
+        if (includeCoverageFences) {
+            Long fencesCount = testHistory.getFencesCount();
+            if (fencesCount != null && fencesCount > 0) {
+                historyItemResponseBuilder.isCoverageFences(true);
+                historyItemResponseBuilder.fences_count(fencesCount);
+            }
+
         }
         setSignalFields(testHistory, historyItemResponseBuilder, classificationCount);
         return historyItemResponseBuilder.build();

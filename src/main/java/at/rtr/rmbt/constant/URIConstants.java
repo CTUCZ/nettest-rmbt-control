@@ -12,6 +12,8 @@ public interface URIConstants {
     String ADMIN_SET_IMPLAUSIBLE = "/admin/setImplausible";
     String SIGNAL_REQUEST = "/signalRequest";
     String SIGNAL_RESULT = "/signalResult";
+    String COVERAGE_REQUEST = "/coverageRequest";
+    String COVERAGE_RESULT = "/coverageResult";
     String ADMIN_SIGNAL = "/reports/signal";
     String TEST_SERVER = "/measurementServer";
     String TEST = "/test";

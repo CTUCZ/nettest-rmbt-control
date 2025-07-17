@@ -97,6 +97,16 @@ public class HistoryItemResponse {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final String status;
 
+    @Schema(description = "Identification of coverage fences")
+    @JsonProperty(value = "isCoverageFences", defaultValue = "false")
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private final Boolean isCoverageFences;
+
+    @Schema(description = "Number of coverage fences")
+    @JsonProperty(value = "fencesCount", defaultValue = "NULL")
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private final Long fences_count;
+
     @JsonProperty(value = "cert_mode")
     @Builder.Default
     private final Boolean certMode = false;

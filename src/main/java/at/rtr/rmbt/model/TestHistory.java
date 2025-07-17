@@ -65,6 +65,9 @@ public class TestHistory {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "fences_count")
+    private Long fencesCount;
+
     @Column(name = "cert_mode")
     private Boolean certMode;
 

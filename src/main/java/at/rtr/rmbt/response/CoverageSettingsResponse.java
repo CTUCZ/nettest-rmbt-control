@@ -12,10 +12,7 @@ import java.util.UUID;
 @Getter
 @EqualsAndHashCode
 @ToString
-public class SignalSettingsResponse {
-
-    @JsonProperty(value = "result_url")
-    private final String resultUrl;
+public class CoverageSettingsResponse {
 
     @JsonProperty(value = "client_remote_ip")
     private final String clientRemoteIp;
