@@ -4,6 +4,7 @@ ALTER TABLE public.test ADD geom4326 public.geometry(point, 3857) NULL;
 ALTER TABLE public.test ADD geom3857 public.geometry(point, 4326) NULL;
 ALTER TABLE public.test ADD referrer varchar(2048) NULL;
 ALTER TABLE public.test ADD temperature float8 NULL;
+ALTER TABLE public.test ADD fences_count int4 NULL;
 ALTER TABLE public.test_location ADD atraster100 varchar(16) NULL;
 ALTER TABLE public.test_location ADD atraster250 varchar(18) NULL;
 ALTER TABLE public.radio_cell ADD cell_state varchar(15) NULL;
