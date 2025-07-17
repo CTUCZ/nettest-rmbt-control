@@ -5,7 +5,7 @@ name: Server test
 
 on:
   push:
-    branches: [ master, ctu-dev ]
+    branches: [ master, ctu-dev, dev-* ]
 jobs:
   build:
 
