@@ -11,10 +11,7 @@ import at.rtr.rmbt.model.*;
 import at.rtr.rmbt.repository.*;
 import at.rtr.rmbt.request.*;
 import at.rtr.rmbt.response.*;
-import at.rtr.rmbt.service.GeoLocationService;
-import at.rtr.rmbt.service.RadioCellService;
-import at.rtr.rmbt.service.RadioSignalService;
-import at.rtr.rmbt.service.SignalService;
+import at.rtr.rmbt.service.*;
 import at.rtr.rmbt.utils.HelperFunctions;
 import com.google.common.net.InetAddresses;
 import org.junit.Before;
@@ -69,6 +66,10 @@ public class SignalServiceImplTest {
     private GeoLocationMapper geoLocationMapper;
     @MockBean
     private RadioSignalService radioSignalService;
+    @MockBean
+    private FencesService fencesService;
+    @MockBean
+    private TestServerService testServerService;
     @MockBean
     private TestMapper testMapper;
     @MockBean
@@ -129,14 +130,14 @@ public class SignalServiceImplTest {
     public void setUp() {
         signalService = new SignalServiceImpl(testRepository, providerRepository,
                 uuidGenerator, clientRepository, signalMapper, radioSignalRepository, geoLocationRepository, testMapper, geoLocationService,
-                radioCellService, radioSignalService, signalRepository);
+                radioCellService, radioSignalService, signalRepository, fencesService, testServerService);
     }
 
     @Test
     // DZ: New implementation currently not supported
     @Ignore
         public void registerSignal_whenCommonRequest_expectSignalResponse() {
-        var expectedResponse = getRegisterSignalResponse();
+        var expectedResponse = getProcessSignalRequestResponse();
         when(httpServletRequest.getLocalAddr()).thenReturn(TestConstants.DEFAULT_IP_V4);
         when(httpServletRequest.getHeader(HeaderConstants.URL)).thenReturn(TestConstants.DEFAULT_URL);
         when(signalRegisterRequest.getUuid()).thenReturn(TestConstants.DEFAULT_CLIENT_UUID);
@@ -147,7 +148,7 @@ public class SignalServiceImplTest {
         when(savedTest.getUid()).thenReturn(TestConstants.DEFAULT_UID);
         when(savedTest.getUuid()).thenReturn(TestConstants.DEFAULT_UUID);
 
-        var actualResponse = signalService.registerSignal(signalRegisterRequest, httpServletRequest, headers);
+        var actualResponse = signalService.processSignalRequest(signalRegisterRequest, httpServletRequest, headers);
 
         assertEquals(expectedResponse, actualResponse);
     }
@@ -492,7 +493,7 @@ public class SignalServiceImplTest {
                 .build();
     }
 
-    private SignalSettingsResponse getRegisterSignalResponse() {
+    private SignalSettingsResponse getProcessSignalRequestResponse() {
         return SignalSettingsResponse.builder()
                 .resultUrl(String.join(TestConstants.DEFAULT_URL, SIGNAL_RESULT))
                 .clientRemoteIp(TestConstants.DEFAULT_IP_V4)
@@ -500,4 +501,6 @@ public class SignalServiceImplTest {
                 .testUUID(TestConstants.DEFAULT_UUID)
                 .build();
     }
+
+
 }

@@ -18,26 +18,37 @@ import java.util.TimeZone;
 @Service
 public class TestHistoryMapperImpl implements TestHistoryMapper {
     @Override
-    public HistoryItemResponse testHistoryToHistoryItemResponse(TestHistory testHistory, Integer classificationCount, Locale locale, boolean includeFailedTests) {
+    public HistoryItemResponse testHistoryToHistoryItemResponse(TestHistory testHistory, Integer classificationCount, Locale locale, boolean includeFailedTests, boolean includeCoverageFences) {
         HistoryItemResponse.HistoryItemResponseBuilder historyItemResponseBuilder = HistoryItemResponse.builder()
                 .testUUID(testHistory.getUuid())
                 .openTestUuid(testHistory.getOpenTestUuid() != null ? "O" + testHistory.getOpenTestUuid() : null)
                 .time(testHistory.getTime().getTime())
                 .timezone(testHistory.getTimezone())
                 .timeString(TimeUtils.getTimeString(testHistory.getTime(), TimeZone.getTimeZone(testHistory.getTimezone()), locale))
-                .speedDownload(FormatUtils.formatSpeed(testHistory.getSpeedDownload()))
-                .speedUpload(FormatUtils.formatSpeed(testHistory.getSpeedUpload()))
-                .ping(FormatUtils.formatPing(testHistory.getPingMedian()))
-                .pingShortest(FormatUtils.formatPing(testHistory.getPingMedian()))
+                .speedDownload(FormatUtils.formatSpeed(testHistory.getSpeedDownload(), locale))
+                .speedUpload(FormatUtils.formatSpeed(testHistory.getSpeedUpload(), locale))
+                .ping(FormatUtils.formatPing(testHistory.getPingMedian(), locale))
+                .pingShortest(FormatUtils.formatPing(testHistory.getPingMedian(), locale))
                 .model(testHistory.getModel())
                 .networkType(testHistory.getNetworkTypeGroupName())
                 .loopUUID(FormatUtils.formatLoopUUID(testHistory.getLoopUuid()))
+                .certMode(testHistory.getCertMode())
                 .speedUploadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_UPLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedUpload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .speedDownloadClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_DOWNLOAD, ObjectUtils.defaultIfNull(testHistory.getSpeedDownload(), NumberUtils.INTEGER_ZERO), classificationCount))
                 .pingClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount))
-                .pingShortestClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount));
+                .pingShortestClassification(ClassificationUtils.classify(ClassificationUtils.THRESHOLD_PING, ObjectUtils.defaultIfNull(testHistory.getPingMedian(), NumberUtils.LONG_ZERO), classificationCount))
+                .fences_count(testHistory.getFencesCount());
+
         if (includeFailedTests) {
             historyItemResponseBuilder.status(testHistory.getStatus().toLowerCase());
+        }
+        if (includeCoverageFences) {
+            Long fencesCount = testHistory.getFencesCount();
+            if (fencesCount != null && fencesCount > 0) {
+                historyItemResponseBuilder.isCoverageFences(true);
+                historyItemResponseBuilder.fences_count(fencesCount);
+            }
+
         }
         setSignalFields(testHistory, historyItemResponseBuilder, classificationCount);
         return historyItemResponseBuilder.build();

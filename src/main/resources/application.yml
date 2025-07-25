@@ -36,7 +36,7 @@ app:
   rmbt:
     accuracyDetailLimit: 10000
     accuracyButtonLimit: 2000
-    duration: 7
+    duration: 10
     pings: 10
     threads: 3
     version: 0.1.0 || 0.3.0 || ^1.0.0
@@ -61,7 +61,6 @@ app:
       - HW-PROBE
       - RTR-Netztest
       - RMBTel
-      -
 application-version:
   host: rtr-api-dev
   server-url: http://localhost:80/RMBTControlServer
@@ -145,3 +144,7 @@ application-version:
 logging:
     config: ${LOGGING_CONFIG_FILE:classpath:logback-local.xml}
 origin: ${CONTROL_ALLOWED_ORIGIN:http://127.0.0.1}
+
+server:
+  address: 0.0.0.0
+  port: 8080  # Optional: specify the port if different from the default 8080

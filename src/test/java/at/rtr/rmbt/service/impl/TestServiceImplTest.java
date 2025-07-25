@@ -265,6 +265,9 @@ public class TestServiceImplTest {
         assertEquals(getBandTestResultDetailResponse(), result);
     }
 
+/*
+
+This test tests for DualSim differentiation, but not DualSim shall be treated equaly
     @Test
     public void getTestResult_whenSignalStrengthNotNullAndUseSignalTrueAndDualSimTrue_expectTestResultContainerResponse() {
         when(testResultRequest.getLanguage()).thenReturn(TestConstants.LANGUAGE_EN);
@@ -295,6 +298,8 @@ public class TestServiceImplTest {
         assertEquals(getMeasurementIfSignalStrengthNotNull(), testResultResponse.getMeasurement());
     }
 
+ */
+
     @Test
     public void getTestResult_whenLteRSRPNotNullAndUseSignalTrueAndDualSimFalse_expectTestResultContainerResponse() {
         when(testResultRequest.getLanguage()).thenReturn(TestConstants.LANGUAGE_EN);
@@ -302,7 +307,7 @@ public class TestServiceImplTest {
         when(testResultRequest.getCapabilitiesRequest()).thenReturn(capabilitiesRequest);
         when(capabilitiesRequest.getClassification()).thenReturn(classificationRequest);
         when(classificationRequest.getCount()).thenReturn(TestConstants.DEFAULT_CLASSIFICATION_COUNT);
-        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)).thenReturn(Optional.of(test));
+        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES)).thenReturn(Optional.of(test));
         when(test.getDualSim()).thenReturn(Boolean.FALSE);
         when(test.getTime()).thenReturn(TestConstants.DEFAULT_ZONED_DATE_TIME);
         when(test.getTimezone()).thenReturn(TestConstants.DEFAULT_TIMEZONE);
@@ -334,7 +339,7 @@ public class TestServiceImplTest {
         when(testResultRequest.getCapabilitiesRequest()).thenReturn(capabilitiesRequest);
         when(capabilitiesRequest.getClassification()).thenReturn(classificationRequest);
         when(classificationRequest.getCount()).thenReturn(TestConstants.DEFAULT_CLASSIFICATION_COUNT);
-        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)).thenReturn(Optional.of(test));
+        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES)).thenReturn(Optional.of(test));
         when(test.getTime()).thenReturn(TestConstants.DEFAULT_ZONED_DATE_TIME);
         when(test.getTimezone()).thenReturn(TestConstants.DEFAULT_TIMEZONE);
         when(test.getDualSim()).thenReturn(Boolean.TRUE);
@@ -366,7 +371,7 @@ public class TestServiceImplTest {
         when(testResultRequest.getCapabilitiesRequest()).thenReturn(capabilitiesRequest);
         when(capabilitiesRequest.getClassification()).thenReturn(classificationRequest);
         when(classificationRequest.getCount()).thenReturn(TestConstants.DEFAULT_CLASSIFICATION_COUNT);
-        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)).thenReturn(Optional.of(test));
+        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES)).thenReturn(Optional.of(test));
         when(test.getTime()).thenReturn(TestConstants.DEFAULT_ZONED_DATE_TIME);
         when(test.getTimezone()).thenReturn(TestConstants.DEFAULT_TIMEZONE);
         when(test.getDualSim()).thenReturn(Boolean.FALSE);
@@ -393,7 +398,7 @@ public class TestServiceImplTest {
         when(testResultRequest.getCapabilitiesRequest()).thenReturn(capabilitiesRequest);
         when(capabilitiesRequest.getClassification()).thenReturn(classificationRequest);
         when(classificationRequest.getCount()).thenReturn(TestConstants.DEFAULT_CLASSIFICATION_COUNT);
-        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)).thenReturn(Optional.of(test));
+        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES)).thenReturn(Optional.of(test));
         when(test.getTime()).thenReturn(TestConstants.DEFAULT_ZONED_DATE_TIME);
         when(test.getTimezone()).thenReturn(TestConstants.DEFAULT_TIMEZONE);
         when(test.getPingMedian()).thenReturn(TestConstants.DEFAULT_TEST_PING_MEDIAN);
@@ -421,7 +426,7 @@ public class TestServiceImplTest {
         when(testResultRequest.getCapabilitiesRequest()).thenReturn(capabilitiesRequest);
         when(capabilitiesRequest.getClassification()).thenReturn(classificationRequest);
         when(classificationRequest.getCount()).thenReturn(TestConstants.DEFAULT_CLASSIFICATION_COUNT);
-        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)).thenReturn(Optional.of(test));
+        when(testRepository.findByUuidAndStatusesIn(TestConstants.DEFAULT_TEST_UUID, Config.TEST_RESULT_STATUSES)).thenReturn(Optional.of(test));
         when(test.getTime()).thenReturn(TestConstants.DEFAULT_ZONED_DATE_TIME);
         when(test.getStatus()).thenReturn(TestConstants.DEFAULT_STATUS_FINISHED);
         when(test.getTimezone()).thenReturn(TestConstants.DEFAULT_TIMEZONE);
@@ -481,9 +486,10 @@ public class TestServiceImplTest {
                         List.of(TestConstants.DEFAULT_DEVICE),
                         List.of(TestConstants.DEFAULT_NETWORK_NAME),
                         client,
+                        false,
                         false))
                 .thenReturn(List.of(testHistory));
-        when(testHistoryMapper.testHistoryToHistoryItemResponse(testHistory, TestConstants.DEFAULT_CLASSIFICATION_COUNT, Locale.ENGLISH, false)).thenReturn(historyItemResponse);
+        when(testHistoryMapper.testHistoryToHistoryItemResponse(testHistory, TestConstants.DEFAULT_CLASSIFICATION_COUNT, Locale.ENGLISH, false,false)).thenReturn(historyItemResponse);
 
         var response = testService.getHistory(historyRequest);
         assertEquals(List.of(historyItemResponse), response.getHistory());

@@ -18,7 +18,6 @@ import java.util.UUID;
 
 @UtilityClass
 public class FormatUtils {
-    public static NumberFormat numberFormat = NumberFormat.getNumberInstance(Locale.US);
     public static MathContext mathContext = new MathContext(Config.SIGNIFICANT_PLACES, RoundingMode.HALF_UP);
 
     public static String format(String template, Integer value) {
@@ -28,9 +27,10 @@ public class FormatUtils {
     }
 
     public static String format(String template, Double value) {
+        final var numberFormat = NumberFormat.getNumberInstance(Locale.US);
         numberFormat.setMaximumFractionDigits(2);
         return Optional.ofNullable(value)
-                .map(x -> numberFormat.format(x))
+                .map(numberFormat::format)
                 .map(x -> String.format(template, x))
                 .orElse(StringUtils.EMPTY);
     }
@@ -42,7 +42,7 @@ public class FormatUtils {
 
     public static String formatSpeedValueAndUnit(Integer speedMbps, String unitValue, Locale locale) {
         Format format = NumberFormat.getNumberInstance(locale);
-        return String.format(Constants.VALUE_AND_UNIT_TEMPLATE, formatSpeed(speedMbps), unitValue);
+        return String.format(Constants.VALUE_AND_UNIT_TEMPLATE, formatSpeed(speedMbps, locale), unitValue);
     }
 
     public static String formatValueAndUnit(Long value, String unitValue) {
@@ -53,7 +53,9 @@ public class FormatUtils {
         return String.format(Constants.VALUE_AND_UNIT_TEMPLATE, value, unitValue);
     }
 
-    public static String formatSpeed(Integer speedKbps) {
+    public static String formatSpeed(Integer speedKbps, Locale locale) {
+        final var numberFormat = NumberFormat.getNumberInstance(locale);
+        numberFormat.setMaximumFractionDigits(2);
         return Optional.ofNullable(speedKbps)
                 .map(s -> ObjectUtils.defaultIfNull(s, NumberUtils.INTEGER_ZERO))
                 .map(x -> x / Constants.BYTES_UNIT_CONVERSION_MULTIPLICATOR)
@@ -69,7 +71,8 @@ public class FormatUtils {
                 .orElse(StringUtils.EMPTY);
     }
 
-    public static String formatPing(Long ping) {
+    public static String formatPing(Long ping, Locale locale) {
+        Format numberFormat = NumberFormat.getNumberInstance(locale);
         return Optional.ofNullable(ping)
                 .map(s -> ObjectUtils.defaultIfNull(s, NumberUtils.LONG_ZERO))
                 .map(x -> x / Constants.PING_CONVERSION_MULTIPLICATOR)

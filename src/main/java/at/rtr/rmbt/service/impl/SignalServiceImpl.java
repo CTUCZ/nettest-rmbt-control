@@ -4,6 +4,8 @@ import at.rtr.rmbt.config.UUIDGenerator;
 import at.rtr.rmbt.constant.Config;
 import at.rtr.rmbt.constant.Constants;
 import at.rtr.rmbt.constant.ErrorMessage;
+import at.rtr.rmbt.enums.ServerType;
+import at.rtr.rmbt.enums.TestPlatform;
 import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.exception.ClientNotFoundException;
 import at.rtr.rmbt.exception.InvalidSequenceException;
@@ -11,14 +13,9 @@ import at.rtr.rmbt.mapper.SignalMapper;
 import at.rtr.rmbt.mapper.TestMapper;
 import at.rtr.rmbt.model.*;
 import at.rtr.rmbt.repository.*;
-import at.rtr.rmbt.request.SignalRegisterRequest;
-import at.rtr.rmbt.request.SignalRequest;
-import at.rtr.rmbt.request.SignalResultRequest;
+import at.rtr.rmbt.request.*;
 import at.rtr.rmbt.response.*;
-import at.rtr.rmbt.service.GeoLocationService;
-import at.rtr.rmbt.service.RadioCellService;
-import at.rtr.rmbt.service.RadioSignalService;
-import at.rtr.rmbt.service.SignalService;
+import at.rtr.rmbt.service.*;
 import at.rtr.rmbt.utils.*;
 import com.google.common.net.InetAddresses;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +32,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Instant;
@@ -69,6 +65,8 @@ public class SignalServiceImpl implements SignalService {
     private final RadioCellService radioCellService;
     private final RadioSignalService radioSignalService;
     private final SignalRepository signalRepository;
+    private final FencesService fencesService;
+    private final TestServerService testServerService;
 
 
     @Override
@@ -78,7 +76,7 @@ public class SignalServiceImpl implements SignalService {
     }
 
     @Override
-    public SignalSettingsResponse registerSignal(SignalRegisterRequest signalRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
+    public SignalSettingsResponse processSignalRequest(SignalRegisterRequest signalRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
         var ip = HeaderExtrudeUtil.getIpFromNgNixHeader(httpServletRequest, headers);
 
         var uuid = uuidGenerator.generateUUID();
@@ -113,22 +111,99 @@ public class SignalServiceImpl implements SignalService {
 
         var savedTest = testRepository.saveAndFlush(test);
 
+        return SignalSettingsResponse.builder()
+                .provider(providerRepository.getProviderNameByTestId(savedTest.getUid()))
+                .clientRemoteIp(ip)
+                .resultUrl(getSignalResultUrl(httpServletRequest))
+                .testUUID(savedTest.getUuid())
+                .build();
+    }
+
+    @Override
+    public CoverageSettingsResponse processCoverageRequest(CoverageRegisterRequest coverageRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
+        var ip = HeaderExtrudeUtil.getIpFromNgNixHeader(httpServletRequest, headers);
+
+        var uuid = uuidGenerator.generateUUID();
+        var openTestUUID = uuidGenerator.generateUUID();
+
+        var client = clientRepository.findByUuid(coverageRegisterRequest.getClientUuid())
+                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageRegisterRequest.getClientUuid())));
+
+        var clientAddress = InetAddresses.forString(ip);
+        var clientIpString = InetAddresses.toAddrString(clientAddress);
+
+        var asInformation = HelperFunctions.getASInformationForSignalRequest(clientAddress);
+
+        TestStatus regStatus = TestStatus.COVERAGE_STARTED;
+        Boolean supportSignal = coverageRegisterRequest.getSignal();
+        if (Boolean.TRUE.equals(supportSignal)) {
+            regStatus = TestStatus.SIGNAL_STARTED;
+        }
+
+        var test = Test.builder()
+                .uuid(uuid)
+                .openTestUuid(openTestUUID)
+                .client(client)
+                .clientPublicIp(clientIpString)
+                .clientPublicIpAnonymized(HelperFunctions.anonymizeIp(clientAddress))
+                .timezone(coverageRegisterRequest.getTimezone())
+                .clientTime(getClientTimeFromSignalRequest(coverageRegisterRequest))
+                .time(getClientTimeFromSignalRequest(coverageRegisterRequest))
+                .publicIpAsn(asInformation.getNumber())
+                .publicIpAsName(asInformation.getName())
+                .countryAsn(asInformation.getCountry())
+                .publicIpRdns(HelperFunctions.getReverseDNS(clientAddress))
+                .status(regStatus)
+                .lastSequenceNumber(-1)
+                .useSsl(false) // hardcode because of database constraint
+                .measurementType(coverageRegisterRequest.getMeasurementType())
+                .clientLanguage(coverageRegisterRequest.getClientLanguage())
+                .softwareRevision(coverageRegisterRequest.getSoftwareRevision())
+                .model(coverageRegisterRequest.getModel())
+                .osVersion(coverageRegisterRequest.getOsVersion())
+                .clientName(ServerType.valueOf(coverageRegisterRequest.getClient_name()))
+                .clientSoftwareVersion(coverageRegisterRequest.getClientSoftwareVersion())
+                .device(coverageRegisterRequest.getDevice())
+                .platform(TestPlatform.valueOf(coverageRegisterRequest.getPlatform().toUpperCase()))
+                .build();
+                // version (0.3), softwareVersionCode (11), type (MOBILE), name (RMBT), client (RMBT)
+
+        var savedTest = testRepository.saveAndFlush(test);
+
         // TODO: for debugging a dummy secret is hardcoded
         // Later a specific test server needs to be defined (host, port)
         final String sharedSecret = "topsecret";
 
         // TODO: Hard coded URLs, later to be defined by pingServer table
-        final String hostname = "udp.netztest.at";
+        final String hostname_v4 = "udpv4.netztest.at";
+        final String hostname_v6 = "udpv6.netztest.at";
         final String port = String.valueOf(444);
 
-        return SignalSettingsResponse.builder()
+        // TODO Add code that takes the server settings from test_server HERE
+        //final List<TestServerResponseForSettings> serverUdpResponseList = testServerService.getServersUdp();
+
+
+
+        String hostname;
+        final boolean isV4Client = inetAddressIsv4(clientAddress);
+        // Integer equal to IP protocol version
+        final int protocolVersion = isV4Client ? 4 : 6;
+
+        if (isV4Client) {
+            hostname= hostname_v4;
+        }
+        else {
+            hostname = hostname_v6;
+        }
+
+        return CoverageSettingsResponse.builder()
                 .provider(providerRepository.getProviderNameByTestId(savedTest.getUid()))
                 .clientRemoteIp(ip)
-                .resultUrl(getResultUrl(httpServletRequest))
                 .testUUID(savedTest.getUuid())
                 .pingToken(generatePingToken(sharedSecret, clientAddress))
                 .pingHost(hostname)
                 .pingPort(port)
+                .ipVersion(protocolVersion)
                 .build();
     }
 
@@ -154,11 +229,11 @@ public class SignalServiceImpl implements SignalService {
 
         testMapper.updateTestWithSignalResultRequest(signalResultRequest, updatedTest);
 
-        updateIpAddress(signalResultRequest, updatedTest);
+        updateIpAddress(signalResultRequest.getTestIpLocal(), updatedTest);
 
-        processGeoLocation(signalResultRequest, updatedTest);
+        processGeoLocation(signalResultRequest.getGeoLocations(), updatedTest);
 
-        processRadioInfo(signalResultRequest, updatedTest);
+        processRadioInfo(signalResultRequest.getRadioInfo(), updatedTest);
 
         log.info("Updated test before save = " + updatedTest);
         testMapper.updateTestLocation(updatedTest);
@@ -175,6 +250,51 @@ public class SignalServiceImpl implements SignalService {
                 .testUUID(uuidToReturn)
                 .build();
     }
+
+
+    @Override
+    @Transactional
+    public CoverageResultResponse processCoverageResult(CoverageResultRequest coverageResultRequest) {
+        log.info("CoverageResultRequest = " + coverageResultRequest);
+        UUID testUuid = getTestUUID(coverageResultRequest);
+
+
+        RtrClient client = clientRepository.findByUuid(coverageResultRequest.getClientUUID())
+                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageResultRequest.getClientUUID())));
+
+
+        Test updatedTest = testRepository.findByUuidAndStatusesInLocked(testUuid, Config.COVERAGE_RESULT_STATUSES)
+                .orElseGet(() -> getEmptyGeneratedTest(coverageResultRequest, client));
+        updatedTest.setStatus(TestStatus.COVERAGE);
+
+
+        testMapper.updateTestWithCoverageResultRequest(coverageResultRequest, updatedTest);
+
+        updateIpAddress(coverageResultRequest.getTestIpLocal(), updatedTest);
+
+
+        log.info("Updated test before save = " + updatedTest);
+        testMapper.updateTestLocation(updatedTest);
+        testRepository.saveAndFlush(updatedTest);
+
+        processFences(coverageResultRequest.getFences(), updatedTest);
+
+        //TODO: UUID is no longer changed by backend
+        UUID uuidToReturn = updatedTest.getUuid();
+
+        if (updatedTest.getTimestamp().plusMinutes(Constants.SIGNAL_CHANGE_UUID_AFTER_MIN)
+                .compareTo(Instant.now().atZone(updatedTest.getTimestamp().getZone())) < 0) {
+            log.info("updating signal uuid after " + Constants.SIGNAL_CHANGE_UUID_AFTER_MIN + " minutes");
+            uuidToReturn = UUID.randomUUID();
+        }
+
+        return CoverageResultResponse.builder()
+                // TODO no uuid as result
+                .testUUID(uuidToReturn)
+                .build();
+
+    }
+
 
     @Override
     public SignalDetailsResponse getSignalStrength(UUID testUUID) {
@@ -280,9 +400,15 @@ public class SignalServiceImpl implements SignalService {
         signalRepository.saveAll(newSignals);
     }
 
-    private void processGeoLocation(SignalResultRequest signalResultRequest, Test updatedTest) {
-        if (Objects.nonNull(signalResultRequest.getGeoLocations())) {
-            geoLocationService.processGeoLocationRequests(signalResultRequest.getGeoLocations(), updatedTest);
+    private void processGeoLocation(List<GeoLocationRequest>  geoLocations, Test updatedTest) {
+        if (Objects.nonNull(geoLocations)) {
+            geoLocationService.processGeoLocationRequests(geoLocations, updatedTest);
+        }
+    }
+
+    private void processFences(List<FencesRequest>  fences, Test updatedTest) {
+        if (Objects.nonNull(fences)) {
+            fencesService.processFencesRequests(fences, updatedTest);
         }
     }
 
@@ -308,20 +434,20 @@ public class SignalServiceImpl implements SignalService {
                 .orElse(null);
     }
 
-    private void processRadioInfo(SignalResultRequest signalResultRequest, Test updatedTest) {
-        if (Objects.nonNull(signalResultRequest.getRadioInfo())) {
-            if (!CollectionUtils.isEmpty(signalResultRequest.getRadioInfo().getCells())) {
-                radioCellService.processRadioCellRequests(signalResultRequest.getRadioInfo().getCells(), updatedTest);
+    private void processRadioInfo(RadioInfoRequest radioInfo, Test updatedTest) {
+        if (Objects.nonNull(radioInfo)) {
+            if (!CollectionUtils.isEmpty(radioInfo.getCells())) {
+                radioCellService.processRadioCellRequests(radioInfo.getCells(), updatedTest);
             }
-            if (!CollectionUtils.isEmpty(signalResultRequest.getRadioInfo().getSignals())) {
-                radioSignalService.saveRadioSignalRequests(signalResultRequest.getRadioInfo(), updatedTest);
+            if (!CollectionUtils.isEmpty(radioInfo.getSignals())) {
+                radioSignalService.saveRadioSignalRequests(radioInfo, updatedTest);
             }
         }
     }
 
-    private void updateIpAddress(SignalResultRequest signalResultRequest, Test updatedTest) {
-        if (Objects.nonNull(signalResultRequest.getTestIpLocal())) {
-            InetAddress ipLocalAddress = InetAddresses.forString(signalResultRequest.getTestIpLocal());
+    private void updateIpAddress(String ipLocal, Test updatedTest) {
+        if (Objects.nonNull(ipLocal)) {
+            InetAddress ipLocalAddress = InetAddresses.forString(ipLocal);
             updatedTest.setClientIpLocal(InetAddresses.toAddrString(ipLocalAddress));
             updatedTest.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
             updatedTest.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
@@ -342,6 +468,17 @@ public class SignalServiceImpl implements SignalService {
         }
     }
 
+    private UUID getTestUUID(CoverageResultRequest coverageResultRequest) {
+        if (Objects.nonNull(coverageResultRequest.getTestUUID())) {
+            return coverageResultRequest.getTestUUID();
+        } else {
+            if (coverageResultRequest.getSequenceNumber() != 0) {
+                throw new InvalidSequenceException();
+            }
+            return uuidGenerator.generateUUID();
+        }
+    }
+
     private Test getEmptyGeneratedTest(SignalResultRequest signalResultRequest, RtrClient client) {
         Test newTest = Test.builder()
                 .uuid(uuidGenerator.generateUUID())
@@ -356,15 +493,42 @@ public class SignalServiceImpl implements SignalService {
         return testRepository.saveAndFlush(newTest);
     }
 
+    private Test getEmptyGeneratedTest(CoverageResultRequest coverageResultRequest, RtrClient client) {
+        Test newTest = Test.builder()
+                .uuid(uuidGenerator.generateUUID())
+                .openTestUuid(uuidGenerator.generateUUID())
+                .time(getClientTimeFromCoverageResultRequest(coverageResultRequest))
+                .timezone(coverageResultRequest.getTimezone())
+                .client(client)
+                .useSsl(false)
+                .lastSequenceNumber(-1)
+                .build();
+
+        return testRepository.saveAndFlush(newTest);
+    }
+
     private ZonedDateTime getClientTimeFromSignalResultRequest(SignalResultRequest signalResultRequest) {
         return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(signalResultRequest.getTimeNanos() / 1e6), signalResultRequest.getTimezone());
     }
+
+    private ZonedDateTime getClientTimeFromCoverageResultRequest(CoverageResultRequest coverageResultRequest) {
+        if (coverageResultRequest.getTimezone() == null)
+            return null;
+        else {
+            return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(coverageResultRequest.getTimeNanos() / 1e6), coverageResultRequest.getTimezone());
+        }
+    }
+
 
     private ZonedDateTime getClientTimeFromSignalRequest(SignalRegisterRequest signalRegisterRequest) {
         return TimeUtils.getZonedDateTimeFromMillisAndTimezone(signalRegisterRequest.getTime(), signalRegisterRequest.getTimezone());
     }
 
-    private String getResultUrl(HttpServletRequest req) {
+    private ZonedDateTime getClientTimeFromSignalRequest(CoverageRegisterRequest signalRegisterRequest) {
+        return TimeUtils.getZonedDateTimeFromMillisAndTimezone(signalRegisterRequest.getTime(), signalRegisterRequest.getTimezone());
+    }
+
+    private String getSignalResultUrl(HttpServletRequest req) {
         return Optional.ofNullable(req.getHeader(URL))
                 .map(url -> String.join(URL, SIGNAL_RESULT))
                 .orElse(getDefaultResultUrl(req));
@@ -391,7 +555,16 @@ public class SignalServiceImpl implements SignalService {
         return out;
     }
 
-    private static String generatePingToken(String sharedSecret, InetAddress ip)  {
+    // Utility to distinguish between IPv4 and IPv6 addresses
+    private static boolean inetAddressIsv4(InetAddress ip) {
+
+        if (ip instanceof Inet4Address) {
+            return true;
+        }
+        return false;
+    }
+
+        private static String generatePingToken(String sharedSecret, InetAddress ip)  {
         // Reference code:
         // src/main/java/at/rtr/rmbt/facade/TestSettingsFacade.java
 

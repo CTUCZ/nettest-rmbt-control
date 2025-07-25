@@ -2,6 +2,7 @@ package at.rtr.rmbt;
 
 import at.rtr.rmbt.constant.Constants;
 import at.rtr.rmbt.enums.*;
+import at.rtr.rmbt.service.TestServerService;
 import at.rtr.rmbt.utils.BandCalculationUtil;
 import at.rtr.rmbt.utils.FormatUtils;
 import at.rtr.rmbt.utils.TimeUtils;
@@ -299,18 +300,18 @@ public interface TestConstants {
     String DEFAULT_ROAMING_TYPE_VALUE = "International";
     String DEFAULT_TEST_RESULT_DETAIL_SPEED_DOWNLOAD_VALUE = "2,122 Mbps";
     String DEFAULT_TEST_RESULT_DETAIL_SPEED_UPLOAD_VALUE = "1,020 Mbps";
-    String DEFAULT_TEST_RESULT_DETAIL_PING_MEDIAN_VALUE = "58 ms";
+    String DEFAULT_TEST_RESULT_DETAIL_PING_MEDIAN_VALUE = "58.4 ms";
     String DEFAULT_TEST_RESULT_DETAIL_WIFI_LINK_SPEED = "100 Mbps";
-    String DEFAULT_TEST_RESULT_DETAIL_TOTAL_BYTES = "0.56 MB";
+    String DEFAULT_TEST_RESULT_DETAIL_TOTAL_BYTES = "0.556 MB";
     String DEFAULT_TEST_RESULT_DETAIL_TOTAL_BYTES_IF = "0.11 MB";
     String DEFAULT_TEST_RESULT_DETAIL_TEST_DL_IF_BYTES_DOWNLOAD = "0.13 MB";
     String DEFAULT_TEST_RESULT_DETAIL_TEST_DL_IF_BYTES_UPLOAD = "0.27 MB";
     String DEFAULT_TEST_RESULT_DETAIL_TEST_UL_IF_BYTES_DOWNLOAD = "0.33 MB";
-    String DEFAULT_TEST_RESULT_DETAIL_TEST_UL_IF_BYTES_UPLOAD = "2.2 MB";
+    String DEFAULT_TEST_RESULT_DETAIL_TEST_UL_IF_BYTES_UPLOAD = "2.23 MB";
     String DEFAULT_TEST_RESULT_DETAIL_TIME_DL = "0.002 s";
     String DEFAULT_TEST_RESULT_DETAIL_TIME_UL = "0.004 s";
-    String DEFAULT_TEST_RESULT_DETAIL_DURATION_DL = "18 s";
-    String DEFAULT_TEST_RESULT_DETAIL_DURATION_UL = "17 s";
+    String DEFAULT_TEST_RESULT_DETAIL_DURATION_DL = "17.8 s";
+    String DEFAULT_TEST_RESULT_DETAIL_DURATION_UL = "16.6 s";
     String DEFAULT_TEST_RESULT_DETAIL_DURATION = "1000 s";
     String DEFAULT_TEST_LOCATION_LINK_NAME = "DEFAULT_TEST_LOCATION_LINK_NAME";
     String DEFAULT_TEST_RESULT_DETAIL_LOCATION = "N 56°54.000'  E 87°18.000' (DEFAULT_PROVIDER, +/- 19 m)";
@@ -321,8 +322,8 @@ public interface TestConstants {
     String DEFAULT_TEST_RESULT_DETAIL_LAND_COVER = "100 (Artificial surfaces)";
     String DEFAULT_TEST_RESULT_DETAIL_SETTLEMENT_TYPE = "3 (settlement area)";
     String DEFAULT_TEST_RESULT_DETAIL_SPEED_DOWNLOAD_NDT = "0.23 Mbps";
-    String DEFAULT_TEST_RESULT_DETAIL_SPEED_UPLOAD_NDT = "1.2 Mbps";
-    String DEFAULT_TEST_RESULT_DETAIL_FREQUENCY_DL = "940 MHz";
+    String DEFAULT_TEST_RESULT_DETAIL_SPEED_UPLOAD_NDT = "1.17 Mbps";
+    String DEFAULT_TEST_RESULT_DETAIL_FREQUENCY_DL = "944 MHz";
     String DEFAULT_TEST_RESULT_DETAIL_RADIO_BAND = "8 (GSM 900)";
     String DEFAULT_TEST_RESULT_DETAIL_TIME_STRING = "Jan 19, 1970, 5:39:24 PM";
     String DEFAULT_TEST_RESULT_DETAIL_TIMEZONE = "UTC+1h";
@@ -365,7 +366,7 @@ public interface TestConstants {
             Date/time: Jan 19, 1970, 5:39:24 PM
             Download: 2,122 Mbps
             Upload: 1,020 Mbps
-            Ping: 58 ms
+            Ping: 58.4 ms
             Signal strength: -111 dBm
             Network type: Dual SIM
             Platform:\s
@@ -378,7 +379,7 @@ public interface TestConstants {
             Date/time: Jan 19, 1970, 5:39:24 PM
             Download: 2,122 Mbps
             Upload: 1,020 Mbps
-            Ping: 58 ms
+            Ping: 58.4 ms
             Signal strength (RSRP): -5 dBm
             Network type: UNKNOWN
             Platform:\s
@@ -406,11 +407,11 @@ public interface TestConstants {
     Integer DEFAULT_RESULT_OFFSET = 2;
     String DEFAULT_FORMATTED_SPEED_UPLOAD = "1,020";
     String DEFAULT_FORMATTED_SPEED_DOWNLOAD = "2,122";
-    String DEFAULT_FORMATTED_PING = "58";
-    String DEFAULT_FORMATTED_PING_SHORTEST = "58";
+    String DEFAULT_FORMATTED_PING = "58.4";
+    String DEFAULT_FORMATTED_PING_SHORTEST = "58.4";
     String DEFAULT_HISTORY_RESPONSE_ITEM_LOOP_UUID = "L2458713e-9362-11eb-a8b3-0242ac130003";
-    String DEFAULT_TEST_HISTORY_FINAL_QUERY = "SELECT DISTINCT t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid, COALESCE(adm.fullname, t.model) model FROM test t LEFT JOIN device_map adm ON adm.codename=t.model LEFT JOIN network_type nt ON t.network_type=nt.uid LEFT JOIN test_loopmode l ON (l.test_uuid = t.uuid) WHERE t.deleted = false AND t.implausible = false   AND t.status IN (?)  AND client_id = ?  AND (COALESCE(adm.fullname, t.model) IN (?))  AND nt.group_name IN (?) ORDER BY time DESC  LIMIT 1 OFFSET 2";
-    String DEFAULT_TEST_HISTORY_FINAL_QUERY_CLIENT_SYNCED = "SELECT DISTINCT t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid, COALESCE(adm.fullname, t.model) model FROM test t LEFT JOIN device_map adm ON adm.codename=t.model LEFT JOIN network_type nt ON t.network_type=nt.uid LEFT JOIN test_loopmode l ON (l.test_uuid = t.uuid) WHERE t.deleted = false AND t.implausible = false   AND t.status IN (?)  AND (t.client_id IN (SELECT ? UNION SELECT uid FROM client WHERE sync_group_id = ? ))  AND (COALESCE(adm.fullname, t.model) IN (?))  AND nt.group_name IN (?) ORDER BY time DESC  LIMIT 1 OFFSET 2";
+    String DEFAULT_TEST_HISTORY_FINAL_QUERY = "SELECT DISTINCT t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid, l.cert_mode cert_mode, COALESCE(adm.fullname, t.model) model FROM test t LEFT JOIN device_map adm ON adm.codename=t.model LEFT JOIN network_type nt ON t.network_type=nt.uid LEFT JOIN test_loopmode l ON (l.test_uuid = t.uuid) WHERE t.deleted = false AND t.implausible = false   AND t.status IN (?)  AND client_id = ?  AND (COALESCE(adm.fullname, t.model) IN (?))  AND nt.group_name IN (?) ORDER BY time DESC  LIMIT 1 OFFSET 2";
+    String DEFAULT_TEST_HISTORY_FINAL_QUERY_CLIENT_SYNCED = "SELECT DISTINCT t.status, t.uuid, t.open_test_uuid, time, timezone, speed_upload, speed_download, ping_median, lte_rsrp, signal_strength, dual_sim, sim_count, network_type, nt.group_name network_type_group_name, l.loop_uuid loop_uuid, l.cert_mode cert_mode, COALESCE(adm.fullname, t.model) model FROM test t LEFT JOIN device_map adm ON adm.codename=t.model LEFT JOIN network_type nt ON t.network_type=nt.uid LEFT JOIN test_loopmode l ON (l.test_uuid = t.uuid) WHERE t.deleted = false AND t.implausible = false   AND t.status IN (?)  AND (t.client_id IN (SELECT ? UNION SELECT uid FROM client WHERE sync_group_id = ? ))  AND (COALESCE(adm.fullname, t.model) IN (?))  AND nt.group_name IN (?) ORDER BY time DESC  LIMIT 1 OFFSET 2";
     Integer DEFAULT_CLIENT_SYNC_GROUP_ID = 5;
     MeasurementType DEFAULT_MEASUREMENT_TYPE_FLAG = MeasurementType.REGULAR;
     String DEFAULT_SYNC_CODE = "DEFAULT_SYNC_CODE";

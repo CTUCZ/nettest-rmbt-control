@@ -128,7 +128,7 @@ public class TestServiceImpl implements TestService {
 
     @Override
     public TestResultContainerResponse getTestResult(TestResultRequest testResultRequest) {
-        Test test = testRepository.findByUuidAndStatusesIn(testResultRequest.getTestUUID(), Config.TEST_RESULT_STATUSES_INCLUDE_ERROR)
+        Test test = testRepository.findByUuidAndStatusesIn(testResultRequest.getTestUUID(), Config.TEST_RESULT_STATUSES)
                 .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.TEST_NOT_FOUND, testResultRequest.getTestUUID())));
         Locale locale = MessageUtils.getLocaleFormLanguage(testResultRequest.getLanguage(), applicationProperties.getLanguage());
         String timeString = TimeUtils.getTimeStringFromTest(test, locale);
@@ -138,7 +138,9 @@ public class TestServiceImpl implements TestService {
                 .measurementResult(getMeasurementResult(test, testResultRequest.getCapabilitiesRequest()))
                 .measurement(getMeasurements(test, locale, testResultRequest.getCapabilitiesRequest()))
                 .openTestUUID(String.format(Constants.TEST_RESULT_DETAIL_OPEN_TEST_UUID_TEMPLATE, test.getOpenTestUuid()))
-                .openUUID(String.format(Constants.TEST_RESULT_DETAIL_OPEN_UUID_TEMPLATE, test.getOpenUuid()))
+                .openUUID(test.getOpenUuid() != null
+                        ? String.format(Constants.TEST_RESULT_DETAIL_OPEN_UUID_TEMPLATE, test.getOpenUuid())
+                        : null)
                 .shareSubject(MessageFormat.format(getStringFromBundle("RESULT_SHARE_SUBJECT", locale), timeString))
                 .shareText(getShareText(test, timeString, locale))
                 .timeString(timeString)
@@ -164,8 +166,22 @@ public class TestServiceImpl implements TestService {
                 .map(CapabilitiesRequest::getClassification)
                 .map(ClassificationRequest::getCount)
                 .orElse(0);
-        List<HistoryItemResponse> historyItemResponses = testHistoryRepository.getTestHistoryByDevicesAndNetworksAndClient(historyRequest.getResultLimit(), historyRequest.getResultOffset(), historyRequest.getDevices(), historyRequest.getNetworks(), client, historyRequest.isIncludeFailedTests()).stream()
-                .map(testHistory -> testHistoryMapper.testHistoryToHistoryItemResponse(testHistory, count, locale, historyRequest.isIncludeFailedTests()))
+        List<HistoryItemResponse> historyItemResponses =
+                testHistoryRepository.getTestHistoryByDevicesAndNetworksAndClient(
+                        historyRequest.getResultLimit(),
+                                historyRequest.getResultOffset(),
+                                historyRequest.getDevices(),
+                                historyRequest.getNetworks(),
+                                client,
+                                historyRequest.isIncludeFailedTests(),
+                                historyRequest.isIncludeCoverageFences()
+                        ).stream()
+                .map(testHistory -> testHistoryMapper.testHistoryToHistoryItemResponse(
+                        testHistory,
+                        count,
+                        locale,
+                        historyRequest.isIncludeFailedTests(),
+                        historyRequest.isIncludeCoverageFences()))
                 .collect(Collectors.toList());
         return HistoryResponse.builder()
                 .history(historyItemResponses)
@@ -188,6 +204,14 @@ public class TestServiceImpl implements TestService {
             }
             test.setStatus(TestStatus.ABORTED);
             testRepository.save(test);
+        }
+        else if (resultUpdateRequest.isFailed()) {
+                //only update if test is currently in status "started"
+                if (test.getStatus() != TestStatus.STARTED) {
+                    throw new IllegalArgumentException(ErrorMessage.INVALID_TEST_STATUS);
+                }
+                test.setStatus(TestStatus.ERROR);
+                testRepository.save(test);
         } else {
             geoLocationService.updateGeoLocation(test, resultUpdateRequest);
             Test updatedTest = testMapper.updateTestLocation(test);
@@ -256,6 +280,8 @@ public class TestServiceImpl implements TestService {
             addNetItemResponse(locale, netItemResponses, getStringFromBundle("RESULT_DUAL_SIM", locale), "RESULT_NETWORK_TYPE");
             networkInfoResponseBuilder.networkTypeLabel(getStringFromBundle("RESULT_DUAL_SIM", locale));
         }
+        if (test.getNetworkType() == null)
+            return;
         if (test.getNetworkType() == 98 || test.getNetworkType() == 99) // mobile wifi or browser
         {
             Optional.ofNullable(test.getProvider())
@@ -452,7 +478,8 @@ public class TestServiceImpl implements TestService {
         String mobileNetworkString = getMobileNetworkString(test, locale);
         String urlShareString = getUrlShareString(test, locale);
 
-        if (dualSim) {
+        // was dualSim
+        if (!useSignal) {
             return MessageFormat.format(getStringFromBundle("RESULT_SHARE_TEXT", locale),
                     timeString,
                     downloadString,
@@ -683,7 +710,11 @@ public class TestServiceImpl implements TestService {
     }
 
     private void addTestFields(List<TestResultDetailContainerResponse> propertiesList, Locale locale, Test test) {
-        if (!MeasurementUtils.isDualSim(test.getNetworkType(), test.getDualSim())) {
+        boolean dualSim = MeasurementUtils.isDualSim(test.getNetworkType(), test.getDualSim());
+        boolean useSignal = MeasurementUtils.isUseSignal(test.getSimCount(), dualSim);
+
+        // was !dualSim
+        if (useSignal) {
             addIntegerAndUnitString(propertiesList, locale, "signal_strength", test.getSignalStrength(), "RESULT_SIGNAL_UNIT");
             addIntegerAndUnitString(propertiesList, locale, "signal_rsrp", test.getLteRsrp(), "RESULT_SIGNAL_UNIT");
             addIntegerAndUnitString(propertiesList, locale, "signal_rsrq", test.getLteRsrq(), "RESULT_DB_UNIT");
@@ -691,6 +722,8 @@ public class TestServiceImpl implements TestService {
                     .map(HelperFunctions::getNetworkTypeName)
                     .ifPresent(networkType -> addString(propertiesList, locale, "network_type", networkType));
             addString(propertiesList, locale, "network_sim_operator_name", test.getNetworkSimOperatorName());
+            if (dualSim)
+                addString(propertiesList,locale,"dual_sim","true");
             addString(propertiesList,
                     locale,
                     "network_sim_operator",

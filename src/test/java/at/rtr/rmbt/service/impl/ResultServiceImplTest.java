@@ -3,8 +3,11 @@ package at.rtr.rmbt.service.impl;
 import at.rtr.rmbt.TestConstants;
 import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.mapper.TestMapper;
+import at.rtr.rmbt.model.LoopModeSettings;
 import at.rtr.rmbt.properties.ApplicationProperties;
+import at.rtr.rmbt.repository.LoopModeSettingsRepository;
 import at.rtr.rmbt.repository.NetworkTypeRepository;
+import at.rtr.rmbt.repository.TestCertAddressRepository;
 import at.rtr.rmbt.repository.TestRepository;
 import at.rtr.rmbt.request.RadioCellRequest;
 import at.rtr.rmbt.request.RadioInfoRequest;
@@ -14,6 +17,7 @@ import at.rtr.rmbt.service.*;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -21,6 +25,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.*;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
 @RunWith(SpringRunner.class)
@@ -47,6 +52,10 @@ public class ResultServiceImplTest {
     private SpeedService speedService;
     @MockBean
     private TestMapper testMapper;
+    @MockBean
+    private LoopModeSettingsRepository loopModeSettingsRepository;
+    @MockBean
+    private TestCertAddressRepository certAddressRepository;
 
     @Mock
     private HttpServletRequest httpServletRequest;
@@ -77,7 +86,7 @@ public class ResultServiceImplTest {
     public void setUp() {
         resultService = new ResultServiceImpl(testRepository, geoLocationService, radioCellService,
                 radioSignalService, cellLocationService, signalService, networkTypeRepository,
-                pingService, speedService, applicationProperties, testMapper);
+                pingService, speedService, applicationProperties, testMapper, loopModeSettingsRepository, certAddressRepository);
     }
 
     @Test
@@ -150,6 +159,21 @@ public class ResultServiceImplTest {
         verifyNoInteractions(radioSignalService);
     }
 
+    @Test
+    public void processResultRequest_whenCertModeIsTrue_expectTestSaved() {
+        // given
+        defaultMock();
+        when(resultRequest.getUserCertMode()).thenReturn(true);
+        when(test.getLoopModeSettings()).thenReturn(new LoopModeSettings());
+
+        // when
+        resultService.processResultRequest(httpServletRequest, resultRequest, headers);
+
+        // then
+        ArgumentCaptor<LoopModeSettings> captor = ArgumentCaptor.forClass(LoopModeSettings.class);
+        verify(loopModeSettingsRepository).save(captor.capture());
+        assertEquals(true, captor.getValue().getCertMode());
+    }
 
     private void defaultMock() {
         when(test.getStatus()).thenReturn(TestStatus.STARTED);

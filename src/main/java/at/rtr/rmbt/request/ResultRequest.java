@@ -1,9 +1,6 @@
 package at.rtr.rmbt.request;
 
-import at.rtr.rmbt.enums.ClientStatus;
-import at.rtr.rmbt.enums.QosStatus;
-import at.rtr.rmbt.enums.ServerType;
-import at.rtr.rmbt.enums.TestPlatform;
+import at.rtr.rmbt.enums.*;
 import at.rtr.rmbt.model.AndroidPermission;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -38,6 +35,10 @@ public class ResultRequest {
     @Schema(description = "Language code of the current locale (ISO 639)")
     @JsonProperty(value = "client_language")
     private final String clientLanguage;
+
+    @Schema(description = "Type of the client", example = "DESKTOP")
+    @JsonProperty(value = "type")
+    private final String type;
 
     @Schema(description = "Time of the test in millis")
     @JsonProperty(value = "time")
@@ -211,6 +212,10 @@ public class ResultRequest {
     @JsonProperty(value = "user_loop_mode")
     private final boolean loopModeEnabled;
 
+    @Schema(description = "User cert mode", example = "true")
+    @JsonProperty(value = "user_cert_mode")
+    private final Boolean userCertMode;
+
     @Schema(description = "mcc-mnc of the operator network, mobile networks only", example = "231-06")
     @JsonProperty(value = "telephony_network_operator")
     private final String telephonyNetworkOperator;
@@ -291,7 +296,7 @@ public class ResultRequest {
     @JsonProperty(value = "test_submission_retry_count")
     private final Integer testSubmissionRetryCount;
 
-    @Schema(description = "Reason of the test finishing, provided as int value", example = "0")
+    @Schema(description = "Status at test end as int; 0 (SUCCESS), 1 (ERROR), 2 (ABORTED)", example = "0")
     @JsonProperty(value = "test_status")
     private final String testStatus;
 
@@ -312,4 +317,20 @@ public class ResultRequest {
     @Schema(description = "Test tag added to each test, can be set in the developer mode settings")
     @JsonProperty(value = "tag")
     private final String tag;
+
+    @Schema(description = "User address for cert mode")
+    @JsonProperty(value = "user_address")
+    private final String userAddress;
+
+    @Schema(description = "User address am_code for cert mode")
+    @JsonProperty(value = "user_address_am_code")
+    private final Integer userAddressAmCode;
+
+    @Schema(description = "User address x_wgs for cert mode")
+    @JsonProperty(value = "user_address_x_wgs")
+    private final Double userAddressXWgs;
+
+    @Schema(description = "User address y_wgs for cert mode")
+    @JsonProperty(value = "user_address_y_wgs")
+    private final Double userAddressYWgs;
 }
