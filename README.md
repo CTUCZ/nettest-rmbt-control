@@ -12,10 +12,10 @@ It consists of the following components:
 * QoS measurement server
 * <strong>Control server (in this repository)</strong>
 * Statistics server 
-* Map server
+* Map server (not used by CTU)
 
 *Open-RMBT* is released under the [Apache License, Version 2.0](LICENSE). It was developed
-by the [Austrian Regulatory Authority for Broadcasting and Telecommunications (RTR-GmbH)](https://www.rtr.at/).
+by the [Austrian Regulatory Authority for Broadcasting and Telecommunications (RTR-GmbH)](https://www.rtr.at/) and modified by the [Czech Telecommunication Office (CTU)](https://ctu.gov.cz/).
 
 Related material
 ----------------
@@ -159,4 +159,8 @@ Alternatively, log can be sent to Logstash on a remote ELK instance
 ```
 Again, make sure the file `etc/tomcat10/logback-control.xml` is owned by`tomcat`.
 
+Get in Touch
+------------
 
+* [CTU-NetTest](https://nettest.ctu.gov.cz) on the web
+* [RTR-Netztest](https://www.netztest.at) on the web
