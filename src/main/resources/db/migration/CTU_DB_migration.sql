@@ -1,7 +1,7 @@
 ALTER TABLE public.test_server ADD coverage bool NULL;
 ALTER TABLE public.test ADD coverage bool NULL;
-ALTER TABLE public.test ADD geom4326 public.geometry(point, 3857) NULL;
-ALTER TABLE public.test ADD geom3857 public.geometry(point, 4326) NULL;
+ALTER TABLE public.test ADD geom3857 public.geometry(point, 3857) NULL;
+ALTER TABLE public.test ADD geom4326 public.geometry(point, 4326) NULL;
 ALTER TABLE public.test ADD referrer varchar(2048) NULL;
 ALTER TABLE public.test ADD temperature float8 NULL;
 ALTER TABLE public.test ADD fences_count int4 NULL;
