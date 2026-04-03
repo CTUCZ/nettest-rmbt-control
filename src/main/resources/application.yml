@@ -61,6 +61,9 @@ app:
       - HW-PROBE
       - RTR-Netztest
       - RMBTel
+  geoIp:
+    dbPath: /var/lib/GeoIP/GeoLite2-Country.mmdb
+
 application-version:
   host: rtr-api-dev
   server-url: http://localhost:80/RMBTControlServer

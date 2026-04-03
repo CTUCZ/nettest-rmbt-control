@@ -2,55 +2,65 @@ package at.rtr.rmbt.utils;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.record.Country;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetAddress;
+import java.util.Optional;
+
+import lombok.Setter;
 
 public abstract class GeoIpHelper
 {
+    private static final Logger log = LoggerFactory.getLogger(GeoIpHelper.class);
+
     private static volatile boolean lookupServiceFailure;
     private static volatile DatabaseReader lookupService;
     private final static Object LOOKUP_SERVICE_LOCK = new Object();
 
-    private static DatabaseReader getLookupService()
-    {
+    @Setter
+    private static String geoIpDbPath = "/var/lib/GeoIP/GeoLite2-Country.mmdb";
+
+    private static Optional<DatabaseReader> getLookupService() {
         if (lookupService != null) {
-            return lookupService;
+            return Optional.of(lookupService);
         }
-        synchronized (LOOKUP_SERVICE_LOCK)
-        {
+        synchronized (LOOKUP_SERVICE_LOCK) {
             if (lookupServiceFailure) {
-                return null;
-            }
-            // A File object pointing to your GeoIP2 or GeoLite2 database
-            File database = new File("/var/lib/GeoIP/GeoLite2-Country.mmdb");
-            try
-            {
-                lookupService = new DatabaseReader.Builder(database).build();
-                return lookupService;
-            }
-            catch (Exception e)
-            {
-                lookupServiceFailure = true;
-                System.out.println("Maxmind GeoIP database could not be loaded");
-                return null;
+                return Optional.empty();
+            } else {
+                // A File object pointing to your GeoIP2 or GeoLite2 database
+                File database = new File(geoIpDbPath);
+                try {
+                    lookupService = new DatabaseReader.Builder(database).build();
+                } catch (Exception e) {
+                    lookupServiceFailure = true;
+                    log.error("Maxmind GeoIP database could not be loaded", e);
+                }
+
+                return Optional.ofNullable(lookupService);
             }
         }
     }
 
-
     public static String lookupCountry(final InetAddress adr) {
+        return getLookupService()
+            .map(lookupService -> lookupCountryResponse(adr, lookupService))
+            .map(CountryResponse::getCountry)
+            .map(Country::getIsoCode)
+            .orElse("");
+    }
+
+    private static CountryResponse lookupCountryResponse(final InetAddress addr, final DatabaseReader lookupService) {
         try {
-            DatabaseReader lookupService = getLookupService();
-            if (lookupService != null) {
-                CountryResponse country = lookupService.country(adr);
-                String countryCode = country.getCountry().getIsoCode();
-                return countryCode;
-            }
+            return lookupService.country(addr);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error while looking up country for ip address: {}", addr, e);
+            return null;
         }
-        return null;
     }
 }
 
