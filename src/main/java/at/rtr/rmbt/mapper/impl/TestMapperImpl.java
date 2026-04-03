@@ -92,6 +92,7 @@ public class TestMapperImpl implements TestMapper {
         test.setUploadTimeNanoSeconds(resultRequest.getTimeUploadOffsetNanos());
         test.setTag(resultRequest.getTag());
         test.setUserServerSelection(resultRequest.getUserServerSelection());
+        test.setDeveloperCode(resultRequest.getDeveloperCode());
         test.setDualSim(resultRequest.getDualSim());
         test.setSimCount(resultRequest.getTelephonySimCount());
         test.setLastClientStatus(resultRequest.getLastClientStatus());

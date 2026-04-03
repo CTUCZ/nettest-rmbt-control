@@ -208,6 +208,10 @@ public class ResultRequest {
     @JsonProperty(value = "user_server_selection")
     private final Boolean userServerSelection;
 
+    @Schema(description = "Developer code")
+    @JsonProperty(value = "developer_code")
+    private final String developerCode;
+
     @Schema(description = "User loop mode", example = "true")
     @JsonProperty(value = "user_loop_mode")
     private final boolean loopModeEnabled;
