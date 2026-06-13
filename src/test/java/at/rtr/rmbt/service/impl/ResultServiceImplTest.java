@@ -81,6 +81,8 @@ public class ResultServiceImplTest {
     private RadioSignalRequest radioSignalRequest;
     @Mock
     private RadioCellRequest radioCellRequest;
+    @Mock
+    private LoopModeSettingsRepository loopModeSettings;
 
     @Before
     public void setUp() {
@@ -163,7 +165,7 @@ public class ResultServiceImplTest {
     public void processResultRequest_whenCertModeIsTrue_expectTestSaved() {
         // given
         defaultMock();
-        when(resultRequest.getUserCertMode()).thenReturn(true);
+        when(resultRequest.getCertMode()).thenReturn(true);
         when(test.getLoopModeSettings()).thenReturn(new LoopModeSettings());
 
         // when

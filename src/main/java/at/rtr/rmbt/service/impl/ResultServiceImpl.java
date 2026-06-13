@@ -21,11 +21,9 @@ import at.rtr.rmbt.utils.HelperFunctions;
 import com.google.common.net.InetAddresses;
 import lombok.RequiredArgsConstructor;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-
+import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
 import java.util.Map;
@@ -36,9 +34,8 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResultServiceImpl implements ResultService {
-
-    private static final Logger log = LoggerFactory.getLogger(ResultServiceImpl.class);
 
     private final TestRepository testRepository;
     private final GeoLocationService geoLocationService;
@@ -91,12 +88,12 @@ public class ResultServiceImpl implements ResultService {
     }
 
     private void processCertMode(ResultRequest resultRequest, Test test) {
-        if (Objects.nonNull(resultRequest.getUserCertMode()) &&
-            resultRequest.getUserCertMode() &&
+        if (Objects.nonNull(resultRequest.getCertMode()) &&
+            resultRequest.getCertMode() &&
             Objects.nonNull(test.getLoopModeSettings())) {
 
             log.info("UserCertMode is true for test result uuid: {}", test.getUuid());
-            test.getLoopModeSettings().setCertMode(resultRequest.getUserCertMode());
+            test.getLoopModeSettings().setCertMode(resultRequest.getCertMode());
             loopModeSettingsRepository.save(test.getLoopModeSettings());
 
             if("DESKTOP".equals(resultRequest.getType())) {

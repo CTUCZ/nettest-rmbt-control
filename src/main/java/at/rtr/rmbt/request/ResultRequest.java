@@ -2,6 +2,7 @@ package at.rtr.rmbt.request;
 
 import at.rtr.rmbt.enums.*;
 import at.rtr.rmbt.model.AndroidPermission;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -17,7 +18,8 @@ import java.util.List;
 public class ResultRequest {
 
     @Schema(description = "Platform of device", example = "Android")
-    @JsonProperty(value = "plattform")
+    @JsonAlias(value = "plattform")
+    @JsonProperty(value = "platform")
     private final TestPlatform platform;
 
     @Schema(description = "Client uuid")
@@ -212,13 +214,16 @@ public class ResultRequest {
     @JsonProperty(value = "developer_code")
     private final String developerCode;
 
+    // Not used
     @Schema(description = "User loop mode", example = "true")
     @JsonProperty(value = "user_loop_mode")
     private final boolean loopModeEnabled;
 
-    @Schema(description = "User cert mode", example = "true")
-    @JsonProperty(value = "user_cert_mode")
-    private final Boolean userCertMode;
+    @Schema(description = "Cert mode", example = "true")
+    // CTU clients send user_cert_mode; user_cer_mode kept from upstream (typo-tolerant alias)
+    @JsonAlias({"user_cert_mode", "user_cer_mode"})
+    @JsonProperty(value = "cert_mode")
+    private final Boolean certMode;
 
     @Schema(description = "mcc-mnc of the operator network, mobile networks only", example = "231-06")
     @JsonProperty(value = "telephony_network_operator")

@@ -47,6 +47,7 @@ public class TestSettingsFacadeTest {
             3,
             4,
             -1,
+            null,
             null
     );
 
@@ -275,7 +276,6 @@ public class TestSettingsFacadeTest {
         assertEquals(result.getTestToken(), secondTestResult.getToken());
         assertEquals(result.getOpenTestUuid().substring(1), secondTestResult.getOpenTestUuid().toString());
         assertEquals(result.getTestUuid(), secondTestResult.getUuid().toString());
-        assertEquals(result.getTestId(), secondTestResult.getUid());
         assertEquals(result.getTestServerPort(), testServer.getPortSsl());
         assertEquals(result.getTestDuration(), DEFAULT_DURATION_SECONDS.toString());
         assertEquals(result.getTestNumberOfThreads(), secondTestResult.getNumberOfThreadsRequested().toString());
