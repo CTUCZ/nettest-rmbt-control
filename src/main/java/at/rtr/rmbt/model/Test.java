@@ -236,7 +236,7 @@ public class Test implements Serializable {
     private Integer testSlot;
 
     @OneToOne
-    @JoinColumn(name = "provider_id")
+    @JoinColumn(name = "provider_id", updatable = false)
     private Provider provider;
 
     @Column(name = "network_is_roaming")
@@ -270,7 +270,7 @@ public class Test implements Serializable {
     @Column(name = "comment")
     private String comment;
 
-    @Column(name = "open_uuid")
+    @Column(name = "open_uuid", updatable = false)
     private UUID openUuid;
 
     @Column(name = "client_time")
@@ -280,10 +280,10 @@ public class Test implements Serializable {
     private Integer zipCodeGeo;
 
     @OneToOne
-    @JoinColumn(name = "mobile_provider_id")
+    @JoinColumn(name = "mobile_provider_id", updatable = false, insertable = false)
     private Provider mobileProvider;
 
-    @Column(name = "roaming_type")
+    @Column(name = "roaming_type", updatable = false, insertable = false)
     private Integer roamingType;
 
     @Column(name = "open_test_uuid", updatable = false)
@@ -326,10 +326,10 @@ public class Test implements Serializable {
     @Column(name = "location_max_distance_gps")
     private Integer locationMaxDistanceGps;
 
-    @Column(name = "network_group_name")
+    @Column(name = "network_group_name", insertable = false, updatable = false)
     private NetworkGroupName networkGroupName;
 
-    @Column(name = "network_group_type")
+    @Column(name = "network_group_type", insertable = false, updatable = false)
     @Enumerated(EnumType.STRING)
     private NetworkGroupType networkGroupType;
 
@@ -519,12 +519,11 @@ public class Test implements Serializable {
     @OneToOne(mappedBy = "test")
     private TestNdt testNdt;
 
+    // Inverse side of the association; owned by TestLocation.test (FK test_location.open_test_uuid).
+    // Must NOT also declare @JoinColumn here: combining mappedBy with @JoinColumn made Hibernate 6.6
+    // try to resolve TestLocation's columns (e.g. atraster100) by name from the "test" result set
+    // of native "SELECT * FROM test" queries, instead of loading them from test_location.
     @OneToOne(fetch = FetchType.LAZY, mappedBy = "test")
-    @JoinColumn(
-            name = "open_test_uuid",
-            referencedColumnName = "open_test_uuid",
-            insertable = false, nullable = false, updatable = false
-    )
     private TestLocation testLocation;
 
     @Enumerated(EnumType.STRING)
