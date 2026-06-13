@@ -6,6 +6,7 @@ import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.exception.TestServerNotFoundException;
 import at.rtr.rmbt.model.*;
 import at.rtr.rmbt.properties.ApplicationProperties;
+import at.rtr.rmbt.repository.SettingsRepository;
 import at.rtr.rmbt.request.TestSettingsRequest;
 import at.rtr.rmbt.response.ErrorResponse;
 import at.rtr.rmbt.response.TestSettingsResponse;
@@ -14,12 +15,10 @@ import at.rtr.rmbt.utils.GeoIpHelper;
 import at.rtr.rmbt.utils.HeaderExtrudeUtil;
 import at.rtr.rmbt.utils.HelperFunctions;
 import at.rtr.rmbt.utils.TimeUtils;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 import com.vdurmont.semver4j.SemverException;
-import io.swagger.v3.oas.annotations.media.Schema;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +63,9 @@ public class TestSettingsFacade {
 
     private final RollBackService rollBackService;
 
+    private final SettingsRepository settingsRepository;
+
+
     @Value("${application-version.server-url}")
     private String applicationServerUrl;
 
@@ -71,7 +73,7 @@ public class TestSettingsFacade {
     public TestSettingsFacade(LoopModeSettingsService loopModeSettingsService, ClientTypeService clientTypeService,
                               ClientService clientService, TestServerService testServerService, TestService testService,
                               ApplicationProperties applicationProperties, MessageSource messageSource, ObjectMapper objectMapper,
-                              RollBackService rollBackService) {
+                              RollBackService rollBackService, SettingsRepository settingsRepository) {
         this.loopModeSettingsService = loopModeSettingsService;
         this.clientTypeService = clientTypeService;
         this.clientService = clientService;
@@ -81,6 +83,7 @@ public class TestSettingsFacade {
         this.messageSource = messageSource;
         this.objectMapper = objectMapper;
         this.rollBackService = rollBackService;
+        this.settingsRepository = settingsRepository;
     }
 
     @Transactional
@@ -188,6 +191,11 @@ public class TestSettingsFacade {
                     ipv6 = isIpV6(testSettingsRequest.getProtocolVersion(), clientAddress, errorResponse, locale);
 
                     Integer numberOfThreads = getNumberOfThreadsOrDefault(testSettingsRequest.getNumberOfThreads());
+
+                    Integer duration = getDuration();
+
+                    Integer minNumberOfPings = getMinNumberOfPings();
+
                     TestServer testServer = null;
 
                     if (testSettingsRequest.isUserServerSelection()) {
@@ -209,9 +217,9 @@ public class TestSettingsFacade {
                             .testServerName(testServer.getName() + " (" + testServer.getCity() + ")")
                             .testServerEncryption(serverTypeDetails.isEncrypted())
                             .testServerType(serverTypeDetails.getServerType())
-                            .testDuration(String.valueOf(applicationProperties.getDuration()))
+                            .testDuration(String.valueOf(duration))
                             .testNumberOfThreads(String.valueOf(numberOfThreads))
-                            .testNumberOfPings(String.valueOf(applicationProperties.getPings()))
+                            .testNumberOfPings(String.valueOf(minNumberOfPings))
                             .clientRemoteIp(clientIpAddress);
 
                     String resultUrl = applicationServerUrl;
@@ -321,7 +329,7 @@ public class TestSettingsFacade {
         test.setUseSsl(serverTypeDetails.isEncrypted());
         test.setTimezone(timeZoneId);
         test.setClientTime(TimeUtils.getZonedDateTimeFromMillisAndTimezone(testSettingsRequest.getTime(), timeZoneId));
-        test.setDuration(applicationProperties.getDuration());
+        test.setDuration(getDuration());
         test.setNumberOfThreadsRequested(numberOfThreads);
         test.setStatus(TestStatus.STARTED);
         test.setSoftwareRevision(testSettingsRequest.getSoftwareRevision());
@@ -404,8 +412,54 @@ public class TestSettingsFacade {
     }
 
     private Integer getNumberOfThreadsOrDefault(Integer numberOfThreads) {
-        //allow clients to explicitly request a certain num_threads
-        return numberOfThreads != null && numberOfThreads > 0 ? numberOfThreads : applicationProperties.getThreads();
+        // allow clients to explicitly request a certain num_threads
+        // but include sanity check (max 10, not more)
+        if (numberOfThreads != null && numberOfThreads > 0 && numberOfThreads < 10)
+            return numberOfThreads;
+
+        // get default number of threads from settings
+        Optional<Settings> numberOfThreadsSetting =
+                settingsRepository.findFirstByKeyAndLangIsNullOrKeyAndLangOrderByLang(
+                        "rmbt_num_threads", "rmbt_num_threads", null);
+
+        // set default, fallback if no setting
+        numberOfThreads = 3;
+        if (numberOfThreadsSetting.isPresent()) {
+            numberOfThreads = Integer.parseInt(numberOfThreadsSetting.get().getValue());
+        }
+        return numberOfThreads;
+    }
+
+    private Integer getDuration() {
+
+        int duration;
+        // get default duration from settings
+        Optional<Settings> durationSetting =
+                settingsRepository.findFirstByKeyAndLangIsNullOrKeyAndLangOrderByLang(
+                        "rmbt_duration_seconds", "rmbt_duration_seconds", null);
+
+        // set default, fallback if no setting
+        duration = 7;
+        if (durationSetting.isPresent()) {
+            duration = Integer.parseInt(durationSetting.get().getValue());
+        }
+        return duration;
+    }
+
+    private Integer getMinNumberOfPings() {
+
+        int minNumberOfPings;
+        // get default minimum number of pings from settings
+        Optional<Settings> minNumberOfPingsSetting =
+                settingsRepository.findFirstByKeyAndLangIsNullOrKeyAndLangOrderByLang(
+                        "rmbt_min_pings", "rmbt_min_pings", null);
+
+        // set default, fallback if no setting
+        minNumberOfPings = 10;
+        if (minNumberOfPingsSetting.isPresent()) {
+            minNumberOfPings = Integer.parseInt(minNumberOfPingsSetting.get().getValue());
+        }
+        return minNumberOfPings;
     }
 
     private String getLanguageIfSupportedOrDefault(String language) {

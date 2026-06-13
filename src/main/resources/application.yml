@@ -36,6 +36,10 @@ app:
   rmbt:
     accuracyDetailLimit: 10000
     accuracyButtonLimit: 2000
+    # NOTE (CTU): upstream v1.3.0 moved the main RMBT test duration/pings/threads to the
+    # DB settings table (rmbt_duration_seconds / rmbt_min_pings / rmbt_num_threads).
+    # These YAML keys are kept because QosMeasurementServiceImpl still reads them from
+    # ApplicationProperties; the main test duration is now DB-driven (set rmbt_duration_seconds=10 in DB).
     duration: 10
     pings: 10
     threads: 3
