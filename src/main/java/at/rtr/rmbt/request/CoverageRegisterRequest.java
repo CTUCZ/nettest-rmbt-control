@@ -1,7 +1,6 @@
 package at.rtr.rmbt.request;
 
 import at.rtr.rmbt.enums.MeasurementType;
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +17,10 @@ public class CoverageRegisterRequest {
     @Schema(description = "UUID of client", example = "68796996-5f40-11eb-ae93-0242ac130002")
     @JsonProperty(value = "client_uuid")
     private final UUID clientUuid;
+
+    @Schema(description = "Loop UUID, defines measurement sequence", example = "bd94df94-b629-4af5-bce1-362c64ded9a2")
+    @JsonProperty(value = "loop_uuid")
+    private final UUID loopUuid;
 
     @Schema(description = "Language of client", example = "de")
     @JsonProperty(value = "client_language")
@@ -63,7 +66,7 @@ public class CoverageRegisterRequest {
     @JsonProperty(value = "measurement_type_flag")
     private final MeasurementType measurementType;
 
-    @Schema(description = "Signal information support by the client", example = "true")
+    @Schema(description = "Signal information support by the client", example = "false")
     @JsonProperty(value = "signal", defaultValue = "false")
     private final Boolean signal;
 

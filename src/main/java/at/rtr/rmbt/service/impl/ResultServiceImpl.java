@@ -135,7 +135,8 @@ public class ResultServiceImpl implements ResultService {
         setMaxNetworkType(test);
         checkForDifferentType(test);
 
-        if (test.getNetworkType() < 0) {
+        // avoid null pointer exception
+        if (test.getNetworkType() == null || test.getNetworkType() < 0) {
             throw new IllegalArgumentException(ErrorMessage.ERROR_NETWORK_TYPE);
         }
     }
@@ -230,19 +231,25 @@ public class ResultServiceImpl implements ResultService {
     }
 
     private void setRMBTClientInfo(ResultRequest resultRequest, Test test) {
-        Optional.ofNullable(resultRequest.getTestIpLocal())
-                .ifPresent(ipLocalRaw -> {
-                    InetAddress ipLocalAddress = InetAddresses.forString(ipLocalRaw);
-                    test.setClientIpLocal(InetAddresses.toAddrString(ipLocalAddress));
-                    test.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
-                    test.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
+        if (resultRequest.getTestIpLocal() == null) {
+            Optional.ofNullable(test.getClientPublicIp())
+                    .map(InetAddresses::forString)
+                    .ifPresent(ipPublicAddress -> {
+                        // store ip version, eg. is_ipv4
+                        test.setNatType(HelperFunctions.getNatType(null, ipPublicAddress));
+                    });
+        } else {
+            InetAddress ipLocalAddress = InetAddresses.forString(resultRequest.getTestIpLocal());
+            test.setClientIpLocal(InetAddresses.toAddrString(ipLocalAddress));
+            test.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
+            test.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
 
-                    Optional.ofNullable(test.getClientPublicIp())
-                            .map(InetAddresses::forString)
-                            .ifPresent(ipPublicAddress -> {
-                                test.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
-                            });
-                });
+            Optional.ofNullable(test.getClientPublicIp())
+                    .map(InetAddresses::forString)
+                    .ifPresent(ipPublicAddress -> {
+                        test.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+                    });
+        }
 
         Optional.ofNullable(resultRequest.getTestIpServer())
                 .ifPresent(ipServer -> {

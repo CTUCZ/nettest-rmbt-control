@@ -2,7 +2,6 @@ package at.rtr.rmbt.model;
 
 
 import at.rtr.rmbt.enums.*;
-import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 import lombok.*;
 import org.hibernate.annotations.*;
 import org.hibernate.type.SqlTypes;
@@ -195,6 +194,12 @@ public class Test implements Serializable {
 
     @Column(name = "nat_type")
     private String natType;
+
+    @Column(name = "nat_type_v4")
+    private String natTypeV4;
+
+    @Column(name = "nat_type_v6")
+    private String natTypeV6;
 
     @Column(name = "client_previous_test_status")
     @Enumerated(EnumType.STRING)
@@ -488,7 +493,8 @@ public class Test implements Serializable {
     @Column(name = "referrer")
     private String referrer;
 
-    @Column(name = "fences_count") // int4
+    @Comment("Count of coverage fence records, int4")
+    @Column(name = "fences_count")
     private Long fencesCount;
 
     // not stored in database (thus @Transient)

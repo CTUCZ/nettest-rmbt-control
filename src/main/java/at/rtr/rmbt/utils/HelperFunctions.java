@@ -367,7 +367,7 @@ public class HelperFunctions {
                         final TXTRecord txt = (TXTRecord) record;
                         @SuppressWarnings("unchecked") final List<String> strings = txt.getStrings();
                         if (strings != null && !strings.isEmpty()) {
-                            System.out.println(strings);
+                            // System.out.println(strings);
 
                             final String result = strings.get(0);
                             final String[] parts = result.split(" ?\\| ?");
@@ -437,6 +437,11 @@ public class HelperFunctions {
                 ipVersionPublic = "ipv6";
             else
                 ipVersionPublic = "ipv?";
+
+            // in case there is no info regarding local address, store public ip version
+            if (localAdr == null) {
+                return "is_"+ipVersionPublic;
+            }
 
             if (localAdr instanceof Inet4Address)
                 ipVersionLocal = "ipv4";

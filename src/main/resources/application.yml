@@ -1,17 +1,20 @@
 server:
   servlet:
     context-path: /RMBTControlServer
+  port: ${CONTROL_SERVER_PORT:8080}
 spring:
+  # Default profile - used when spring.profiles.active is not set
   main:
     allow-bean-definition-overriding: true
   application:
-    name: rtr-backend
+    name: rtr-control-backend
   datasource:
     poolSize: 20
     minIdle: 1
     driverClassName: org.postgresql.Driver
-    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5431}/${CONTROL_DB_NAME:rmbt}
-    username: ${CONTROL_DB_USER:rmbt}
+    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5432}/${CONTROL_DB_NAME:rmbt}
+    username: ${CONTROL_DB_USER:rmbt_control}
+    # intellig: set pw in environment, e.g. STATISTIC_DB_PASSWORD=pwwithoutquotes
     password: ${CONTROL_DB_PASSWORD}
 #    tomcat:
 #      test-while-idle: true
@@ -26,12 +29,13 @@ spring:
     enabled: false
   jackson:
     default-property-inclusion: non_null
+# used in src/main/java/at/rtr/rmbt/service/impl/QosMeasurementServiceImpl.java
 RMBT_SECRETKEY: RMBT_SECRETKEY
 
 auth0:
   issuer: https://auth.a2332751-f1b8-4d26-8291.example.com
   apiAudience: https://example.com
-origin: https://www.netztest.at
+origin: ${CONTROL_ALLOWED_ORIGIN:*}
 app:
   rmbt:
     accuracyDetailLimit: 10000
@@ -69,75 +73,54 @@ app:
     dbPath: /var/lib/GeoIP/GeoLite2-Country.mmdb
 
 application-version:
-  host: rtr-api-dev
-  server-url: http://localhost:80/RMBTControlServer
-
-elastic-index:
-  basicTenantIndexes:
-    rtr: basic_test_rtr
-  basicQosTenantIndexes:
-    rtr: basic_qos_test_rtr
-  keepAlive: keep_alive
+  host: rtr-control-default
+  server-url: ${CONTROL_SERVER_URL:http://127.0.0.1:8080/RMBTControlServer}
 
 client-tenant:
   clientTenantMapping:
     rtr: rtr
   defaultTenant: rtr
 
-measurement-server:
-  host: http://localhost:8080
-  slotWindow: 5
-  defaultProviderId: 6
-
-jira:
-  requestTypeId: 0
-  serviceDeskId: 60
-  url: https://example.com
-  username: root@example.com
-  password: invalid
-
 ---
 spring:
-  activate:
-    on-profile: dev
+  config:
+    activate:
+      on-profile: dev
+
   datasource:
     poolSize: 20
     minIdle: 1
     driverClassName: org.postgresql.Driver
-    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5431}/${CONTROL_DB_NAME:rmbt}
-    username: ${CONTROL_DB_USER:rmbt}
+    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5432}/${CONTROL_DB_NAME:rmbt}
+    username: ${CONTROL_DB_USER:rmbt_control}
     password: ${CONTROL_DB_PASSWORD}
 #    tomcat:
 #      test-while-idle: true
 #      test-on-borrow: true
 #      validation-query: SELECT 1
-
-measurement-server:
-  host: api-dev
 
 client-tenant:
   clientTenantMapping:
     rtr: rtr_dev
   defaultTenant: rtr
 
-git:
-  branch:${git.branch}
-
 application-version:
-  host: rtr-api-dev
-  server-url: https://rtr-api-dev.nettest.org/RMBTControlServer
+  host: rtr-control-dev
+  server-url: ${CONTROL_SERVER_URL:http://127.0.0.1:8080/RMBTControlServer}
 
 ---
 spring:
-  activate:
-    on-profile: prod
+  config:
+    activate:
+      # production profile - activate by adding "spring.profiles.active=prod" to "catalina.properties"
+      on-profile: prod
+
   datasource:
     poolSize: 20
     minIdle: 1
     driverClassName: org.postgresql.Driver
-    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5431}/${CONTROL_DB_NAME:rmbt}
-    username: ${CONTROL_DB_USER:rmbt}
-#   Put the password into the environment, e.g. CONTROL_DB_PASSWORD=mypasswd
+    url: jdbc:postgresql://${CONTROL_DB_HOST:127.0.0.1}:${CONTROL_DB_PORT:5432}/${CONTROL_DB_NAME:rmbt}
+    username: ${CONTROL_DB_USER:rmbt_control}
     password: ${CONTROL_DB_PASSWORD}
 #    tomcat:
 #      test-while-idle: true
@@ -145,13 +128,13 @@ spring:
 #      validation-query: SELECT 1
 
 application-version:
-  host: ${HOST_ID:rtr-api-prod}
+  host: ${HOST_ID:rtr-control-prod}
   server-url: ${CONTROL_SERVER_URL:http://127.0.0.1:8080/RMBTControlServer}
 
 logging:
     config: ${LOGGING_CONFIG_FILE:classpath:logback-local.xml}
-origin: ${CONTROL_ALLOWED_ORIGIN:http://127.0.0.1}
+origin: ${CONTROL_ALLOWED_ORIGIN:https://www.netztest.at}
 
 server:
   address: 0.0.0.0
-  port: 8080  # Optional: specify the port if different from the default 8080
+  port: ${CONTROL_SERVER_PORT:8080}  # Optional: specify the port if different from the default 8080

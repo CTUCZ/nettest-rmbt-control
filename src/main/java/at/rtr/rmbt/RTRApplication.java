@@ -17,8 +17,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootApplication(scanBasePackages = {"at.rtr.rmbt"})
 @EnableJpaRepositories(basePackages = {"at.rtr.rmbt.repository"}, repositoryBaseClass = CustomRepositoryImpl.class)
 @EntityScan(basePackages = {"at.rtr.rmbt.model"})
-@PropertySource({"classpath:git.properties"})
+
 @EnableConfigurationProperties(ApplicationProperties.class)
+// Run/Debug this class for debugging (e.g. in IntelliG)
 public class RTRApplication extends SpringBootServletInitializer {
 
     public static void main(String[] args) {

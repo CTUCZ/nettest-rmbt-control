@@ -9,6 +9,7 @@ import at.rtr.rmbt.enums.TestPlatform;
 import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.exception.ClientNotFoundException;
 import at.rtr.rmbt.exception.InvalidSequenceException;
+import at.rtr.rmbt.exception.TestNotFoundException;
 import at.rtr.rmbt.mapper.SignalMapper;
 import at.rtr.rmbt.mapper.TestMapper;
 import at.rtr.rmbt.model.*;
@@ -35,10 +36,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -68,6 +66,7 @@ public class SignalServiceImpl implements SignalService {
     private final FencesService fencesService;
     private final TestServerService testServerService;
     private final SettingsRepository settingsRepository;
+    private final LoopModeSettingsService loopModeSettingsService;
 
 
     @Override
@@ -127,6 +126,7 @@ public class SignalServiceImpl implements SignalService {
         var uuid = uuidGenerator.generateUUID();
         var openTestUUID = uuidGenerator.generateUUID();
 
+        // Check if client exists
         var client = clientRepository.findByUuid(coverageRegisterRequest.getClientUuid())
                 .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageRegisterRequest.getClientUuid())));
 
@@ -134,6 +134,32 @@ public class SignalServiceImpl implements SignalService {
         var clientIpString = InetAddresses.toAddrString(clientAddress);
 
         var asInformation = HelperFunctions.getASInformationForSignalRequest(clientAddress);
+
+
+        // check if client submitted a loopUuid
+        var loopUuid = coverageRegisterRequest.getLoopUuid();
+        int loopTestCounter;
+
+        if (loopUuid == null) {
+            loopUuid = uuidGenerator.generateUUID();
+            loopTestCounter = 1;
+        }
+        else {
+            // check if loop uuid exists and if it belongs to the client
+            if (!loopModeSettingsService.existsByLoopUuidAndClientUuid(loopUuid, client.getUuid())) {
+                throw new TestNotFoundException(
+                        String.format(ErrorMessage.TEST_WITH_LOOP_UUID_NOT_FOUND, loopUuid)
+                );
+            }
+            // get latest counter
+            loopTestCounter = loopModeSettingsService.findMaxTestCounterByLoopUuid(loopUuid).orElse(0);
+            // increase counter by one
+            loopTestCounter = loopTestCounter + 1;
+        }
+
+        // create new loop record
+        LoopModeSettings loopModeSettings = toLoopModeSettings(loopUuid, uuid, client.getUuid(), loopTestCounter);
+
 
         TestStatus regStatus = TestStatus.COVERAGE_STARTED;
         Boolean supportSignal = coverageRegisterRequest.getSignal();
@@ -170,6 +196,7 @@ public class SignalServiceImpl implements SignalService {
                 // version (0.3), softwareVersionCode (11), type (MOBILE), name (RMBT), client (RMBT)
 
         var savedTest = testRepository.saveAndFlush(test);
+        loopModeSettingsService.save(loopModeSettings);
 
         // get maxCoverageMeasurement time from settings (this is the max time for a single measurement)
 
@@ -248,8 +275,24 @@ public class SignalServiceImpl implements SignalService {
                 .ipVersion(protocolVersion)
                 .maxCoverageMeasurementSeconds(maxCoverageMeasurementSeconds)
                 .maxCoverageSessionSeconds(maxCoverageSessionSeconds)
+                .loopUUID(loopUuid)
+                .loopTestCounter(loopTestCounter)
                 .build();
     }
+
+    private LoopModeSettings toLoopModeSettings(UUID loopUUID,UUID testUUID, UUID clientUUID, int testCounter) {
+        var loopModeSettings = new LoopModeSettings();
+        loopModeSettings.setLoopUuid(loopUUID);
+        loopModeSettings.setClientUuid(clientUUID);
+        loopModeSettings.setTestUuid(testUUID);
+        loopModeSettings.setTestCounter(testCounter);
+        loopModeSettings.setMaxDelay(null);
+        loopModeSettings.setMaxMovement(null);
+        loopModeSettings.setMaxTests(null);
+        loopModeSettings.setCertMode(null);
+        return loopModeSettings;
+    }
+
 
     @Override
     @Transactional
@@ -298,17 +341,17 @@ public class SignalServiceImpl implements SignalService {
 
     @Override
     @Transactional
-    public CoverageResultResponse processCoverageResult(CoverageResultRequest coverageResultRequest) {
+    public void processCoverageResult(CoverageResultRequest coverageResultRequest) {
         log.info("CoverageResultRequest = " + coverageResultRequest);
         UUID testUuid = getTestUUID(coverageResultRequest);
 
-
-        RtrClient client = clientRepository.findByUuid(coverageResultRequest.getClientUUID())
+        // Check if client uuid exists
+        clientRepository.findByUuid(coverageResultRequest.getClientUUID())
                 .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageResultRequest.getClientUUID())));
 
-
+        // Try to find test in correct started state or throw exception
         Test updatedTest = testRepository.findByUuidAndStatusesInLocked(testUuid, Config.COVERAGE_RESULT_STATUSES)
-                .orElseGet(() -> getEmptyGeneratedTest(coverageResultRequest, client));
+                .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.STARTED_TEST_NOT_FOUND, testUuid)));
         updatedTest.setStatus(TestStatus.COVERAGE);
 
 
@@ -323,8 +366,8 @@ public class SignalServiceImpl implements SignalService {
 
         processFences(coverageResultRequest.getFences(), updatedTest);
 
-        return CoverageResultResponse.builder()
-                 .build();
+        CoverageResultResponse.builder()
+                .build();
     }
 
 
@@ -484,8 +527,12 @@ public class SignalServiceImpl implements SignalService {
             updatedTest.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
             updatedTest.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
 
-            InetAddress ipPublicAddress = InetAddresses.forString(updatedTest.getClientPublicIp());
-            updatedTest.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+            // clientPublicIp might be null, avoid NullPointerException
+            String clientPublicIp = updatedTest.getClientPublicIp();
+            if (clientPublicIp != null) {
+                InetAddress ipPublicAddress = InetAddresses.forString(clientPublicIp);
+                updatedTest.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+            }
         }
     }
 
@@ -525,30 +572,9 @@ public class SignalServiceImpl implements SignalService {
         return testRepository.saveAndFlush(newTest);
     }
 
-    private Test getEmptyGeneratedTest(CoverageResultRequest coverageResultRequest, RtrClient client) {
-        Test newTest = Test.builder()
-                .uuid(uuidGenerator.generateUUID())
-                .openTestUuid(uuidGenerator.generateUUID())
-                .time(getClientTimeFromCoverageResultRequest(coverageResultRequest))
-                .timezone(coverageResultRequest.getTimezone())
-                .client(client)
-                .useSsl(false)
-                .lastSequenceNumber(-1)
-                .build();
-
-        return testRepository.saveAndFlush(newTest);
-    }
 
     private ZonedDateTime getClientTimeFromSignalResultRequest(SignalResultRequest signalResultRequest) {
         return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(signalResultRequest.getTimeNanos() / 1e6), signalResultRequest.getTimezone());
-    }
-
-    private ZonedDateTime getClientTimeFromCoverageResultRequest(CoverageResultRequest coverageResultRequest) {
-        if (coverageResultRequest.getTimezone() == null)
-            return null;
-        else {
-            return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(coverageResultRequest.getTimeNanos() / 1e6), coverageResultRequest.getTimezone());
-        }
     }
 
 
@@ -590,10 +616,7 @@ public class SignalServiceImpl implements SignalService {
     // Utility to distinguish between IPv4 and IPv6 addresses
     private static boolean inetAddressIsv4(InetAddress ip) {
 
-        if (ip instanceof Inet4Address) {
-            return true;
-        }
-        return false;
+        return ip instanceof Inet4Address;
     }
 
         private static String generatePingToken(String sharedSecret, InetAddress ip)  {
@@ -635,8 +658,8 @@ public class SignalServiceImpl implements SignalService {
         // byte[] timeBytes = Arrays.copyOfRange(timeBuffer8.array(), 1, 8);
 
         // Print current time for debugging (similar to Python)
-        LocalDateTime dateTime = LocalDateTime.ofEpochSecond(nowSeconds, 0, ZoneOffset.UTC);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        // LocalDateTime dateTime = LocalDateTime.ofEpochSecond(nowSeconds, 0, ZoneOffset.UTC);
+        // DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         // System.out.println("Current time: " + dateTime.format(formatter));
         // System.out.println("time hex: " + bytesToHex(timeBytes));
 
@@ -660,13 +683,6 @@ public class SignalServiceImpl implements SignalService {
         dataBuffer.put(packetHashTime8); // 8 bytes
         dataBuffer.put(packetHashIp4); // 4 bytes
         byte[] token = dataBuffer.array();
-
-        // Print results
-        System.out.println("Original token (in hex): " + bytesToHex(token));
-        String b64Token = Base64.getEncoder().encodeToString(token);
-        System.out.println("Token (Base64): " + b64Token);
-
-        return b64Token;
-
+        return Base64.getEncoder().encodeToString(token);
     }
 }
