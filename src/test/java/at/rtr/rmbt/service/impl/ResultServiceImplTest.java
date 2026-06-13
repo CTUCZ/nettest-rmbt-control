@@ -19,7 +19,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,29 +32,29 @@ import static org.mockito.Mockito.*;
 public class ResultServiceImplTest {
     private ResultService resultService;
 
-    @MockBean
+    @MockitoBean
     private TestRepository testRepository;
-    @MockBean
+    @MockitoBean
     private GeoLocationService geoLocationService;
-    @MockBean
+    @MockitoBean
     private RadioCellService radioCellService;
-    @MockBean
+    @MockitoBean
     private RadioSignalService radioSignalService;
-    @MockBean
+    @MockitoBean
     private CellLocationService cellLocationService;
-    @MockBean
+    @MockitoBean
     private SignalService signalService;
-    @MockBean
+    @MockitoBean
     private NetworkTypeRepository networkTypeRepository;
-    @MockBean
+    @MockitoBean
     private PingService pingService;
-    @MockBean
+    @MockitoBean
     private SpeedService speedService;
-    @MockBean
+    @MockitoBean
     private TestMapper testMapper;
-    @MockBean
+    @MockitoBean
     private LoopModeSettingsRepository loopModeSettingsRepository;
-    @MockBean
+    @MockitoBean
     private TestCertAddressRepository certAddressRepository;
 
     @Mock
@@ -180,7 +180,7 @@ public class ResultServiceImplTest {
     private void defaultMock() {
         when(test.getStatus()).thenReturn(TestStatus.STARTED);
         when(resultRequest.getTestToken()).thenReturn(TestConstants.DEFAULT_TEST_TOKEN);
-        when(testRepository.findByUuidOrOpenTestUuid(TestConstants.DEFAULT_TEST_UUID)).thenReturn(Optional.of(test));
+        when(testRepository.findAndLockByUuidOrOpenTestUuid(TestConstants.DEFAULT_TEST_UUID)).thenReturn(Optional.of(test));
         when(resultRequest.getClientVersion()).thenReturn(TestConstants.DEFAULT_CLIENT_VERSION);
         when(resultRequest.getClientName()).thenReturn(TestConstants.DEFAULT_TEST_SERVER_SERVER_TYPE);
         when(httpServletRequest.getLocalAddr()).thenReturn(TestConstants.DEFAULT_IP_V4);

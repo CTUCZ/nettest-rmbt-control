@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @EqualsAndHashCode
 @ToString
-public class CoverageSettingsResponse {
+public class SignalMeasurementSettingsResponse {
 
     @Schema(description = "Public IP of client", example = "1.2.3.4")
     @JsonProperty(value = "client_remote_ip")
@@ -44,11 +44,12 @@ public class CoverageSettingsResponse {
     private final Integer ipVersion;
 
     @Schema(description = "Maximum duration of single session in seconds", example = "3600")
-    private final Long maxCoverageSessionSeconds;
+    @JsonProperty(value = "max_coverage_session_seconds")
+    private final Long maxSignalMeasurementSessionSeconds;
 
-    @Schema(description = "Maximum total duration of coverage measurement in seconds", example = "86400")
+    @Schema(description = "Maximum total duration of signal measurement in seconds", example = "86400")
     @JsonProperty(value = "max_coverage_measurement_seconds")
-    private final Long maxCoverageMeasurementSeconds;
+    private final Long maxSignalMeasurementSeconds;
 
     @Schema(description = "UUID of sequence, generated if not existing", example = "dfa91a7a-fa8f-4bcd-86f5-e0b906162c4e")
     @JsonProperty(value = "loop_uuid")
@@ -57,5 +58,21 @@ public class CoverageSettingsResponse {
     @Schema(description = "Counter in loop (1st, 2nd, 3rd test)", example = "42")
     @JsonProperty(value = "loop_test_counter")
     private final Integer loopTestCounter;
+
+    /**
+     * Legacy camelCase alias of {@code max_coverage_session_seconds}. Older clients read this
+     * key, so it is emitted in addition to the snake_case variant to let the client base migrate
+     * gradually. Remove once all clients consume {@code max_coverage_session_seconds}.
+     *
+     * @deprecated use {@code max_coverage_session_seconds} instead.
+     */
+    @Deprecated
+    @Schema(deprecated = true,
+            description = "Deprecated camelCase alias of max_coverage_session_seconds; will be removed once clients migrate",
+            example = "3600")
+    @JsonProperty(value = "maxCoverageSessionSeconds", access = JsonProperty.Access.READ_ONLY)
+    public Long getMaxCoverageSessionSecondsLegacy() {
+        return maxSignalMeasurementSessionSeconds;
+    }
 
 }

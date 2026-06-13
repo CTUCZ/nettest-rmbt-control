@@ -220,8 +220,8 @@ public class ResultRequest {
     private final boolean loopModeEnabled;
 
     @Schema(description = "Cert mode", example = "true")
-    // CTU clients send user_cert_mode; user_cer_mode kept from upstream (typo-tolerant alias)
-    @JsonAlias({"user_cert_mode", "user_cer_mode"})
+    // CTU alias: clients send user_cert_mode (upstream's canonical name is cert_mode via @JsonProperty)
+    @JsonAlias("user_cert_mode")
     @JsonProperty(value = "cert_mode")
     private final Boolean certMode;
 
@@ -317,9 +317,7 @@ public class ResultRequest {
     @JsonProperty(value = "last_qos_status")
     private final QosStatus lastQosStatus;
 
-
-    @Schema(description = "Stacktrace of IllegalNetworkChangeException exception grabbed from RMBTClient which was happened during the test.\n" +
-            "May be null if test was success or cancelled")
+    @Schema(description = "Information on error cause")
     @JsonProperty(value = "test_error_cause")
     private final String testErrorCause;
 

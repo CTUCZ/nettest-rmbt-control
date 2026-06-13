@@ -1,8 +1,11 @@
 package at.rtr.rmbt.model;
 
 import at.rtr.rmbt.enums.TestType;
+import at.rtr.rmbt.model.type.TestTypeUserType;
 import lombok.*;
+import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
 
 import jakarta.persistence.*;
 import org.hibernate.type.SqlTypes;
@@ -13,6 +16,7 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 @ToString
 @Entity
+@Immutable
 @Table(name = "qos_test_objective")
 public class QosTestObjective {
 
@@ -22,6 +26,7 @@ public class QosTestObjective {
     private Long uid;
 
     @Column(name = "test")
+    @Type(TestTypeUserType.class)
     private TestType testType;
 
     @Column(name = "test_class")

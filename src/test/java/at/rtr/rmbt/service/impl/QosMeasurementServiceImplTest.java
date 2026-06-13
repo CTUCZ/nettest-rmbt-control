@@ -23,7 +23,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.MessageSource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -45,7 +45,7 @@ public class QosMeasurementServiceImplTest {
         .client(client)
         .build();
     private static final HashSet<DnsResult.DnsEntry> dnsEntries = new HashSet<>();
-    private static final DnsResult.DnsEntry dnsEntry = DnsResult.DnsEntry.builder().address("addr").priority(((short) 1)).build();
+    private static final DnsResult.DnsEntry dnsEntry = DnsResult.DnsEntry.builder().address("addr").priority(1).build();
     private static final DnsResult dnsResult = DnsResult.builder()
         .duration(1)
         .entriesFound(2)
@@ -58,9 +58,9 @@ public class QosMeasurementServiceImplTest {
         .timeout(100)
         .build();
     private QosMeasurementService qosMeasurementService;
-    @MockBean
+    @MockitoBean
     private QosTestObjectiveRepository qosTestObjectiveRepository;
-    @MockBean
+    @MockitoBean
     private QosTestObjectiveMapper qosTestObjectiveMapper;
     @Mock
     private QosTestTypeDescRepository qosTestTypeDescRepository;

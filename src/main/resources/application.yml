@@ -2,6 +2,18 @@ server:
   servlet:
     context-path: /RMBTControlServer
   port: ${CONTROL_SERVER_PORT:8080}
+javamelody:
+  init-parameters:
+    # Disable GC / heap-dump / clear-counter actions in the monitoring report.
+    system-actions-enabled: false
+cleanup-task:
+  # Spring cron (sec min hour day month weekday); daily at 04:00. Set to "-" to disable.
+  cron: "0 0 4 * * *"
+  # Empty = server's default time zone (e.g. set "Europe/Vienna" if the JVM runs in UTC).
+  zone: ""
+  # SQL statements executed, in order, on each run.
+  statements:
+    - "update test set client_public_ip = null where uid = 1"
 spring:
   # Default profile - used when spring.profiles.active is not set
   main:
@@ -80,6 +92,16 @@ client-tenant:
   clientTenantMapping:
     rtr: rtr
   defaultTenant: rtr
+
+# springdoc / Swagger UI. Serve the OpenAPI spec at /api-docs(.yaml) instead of the springdoc
+# default /v3/api-docs. Rationale: this Tomcat shares catalina.properties (JVM-global system
+# properties) across webapps, and the statistics backend sets springdoc.swagger-ui.url=/api-docs.yaml
+# there, which leaks into this control server (a JVM system property outranks this file, so we
+# cannot override swagger-ui.url back — but api-docs.path is NOT injected, so we can move the spec
+# to match). Swagger UI then resolves the spec via swagger-config regardless of environment.
+springdoc:
+  api-docs:
+    path: /api-docs
 
 ---
 spring:

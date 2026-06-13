@@ -1,6 +1,7 @@
 package at.rtr.rmbt.utils;
 
 import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 
@@ -14,7 +15,7 @@ import lombok.Setter;
 
 public abstract class GeoIpHelper
 {
-    private static final Logger log = LoggerFactory.getLogger(GeoIpHelper.class);
+    private static final Logger LOG = LoggerFactory.getLogger(GeoIpHelper.class);
 
     private static volatile DatabaseReader countryLookupService;
     private static volatile DatabaseReader asnLookupService;
@@ -84,10 +85,10 @@ public abstract class GeoIpHelper
                 // set next retry time only for the failing DB
                 if (type == DbType.COUNTRY) {
                     countryNextRetryAtMs = nowLocked + RETRY_DELAY_MS;
-                    log.error("Maxmind GeoIP COUNTRY database could not be loaded; retry after {} minutes", RETRY_DELAY_MS / MS_PER_MINUTE, e);
+                    LOG.error("Maxmind GeoIP COUNTRY database could not be loaded; retry after {} minutes", RETRY_DELAY_MS / MS_PER_MINUTE, e);
                 } else {
                     asnNextRetryAtMs = nowLocked + RETRY_DELAY_MS;
-                    log.error("Maxmind GeoIP ASN database could not be loaded; retry after {} minutes", RETRY_DELAY_MS / MS_PER_MINUTE, e);
+                    LOG.error("Maxmind GeoIP ASN database could not be loaded; retry after {} minutes", RETRY_DELAY_MS / MS_PER_MINUTE, e);
                 }
                 return null;
             }
@@ -112,8 +113,12 @@ public abstract class GeoIpHelper
                 ? country.getRegisteredCountry().getIsoCode()
                 : country.getCountry().getIsoCode();
 
+        } catch (AddressNotFoundException e) {
+            // Normal: the address is simply not in the GeoIP database (e.g. private/unknown IP).
+            LOG.warn("Country lookup: address {} not found in the GeoIP database", adr.getHostAddress());
+            return null;
         } catch (Exception e) {
-            log.error("Error while looking up country for ip address: {}", adr, e);
+            LOG.error("Country lookup failed for {}", adr.getHostAddress(), e);
             return null;
         }
     }
@@ -135,8 +140,11 @@ public abstract class GeoIpHelper
                 final AsnResponse asn = lookupService.asn(adr);
                 return new AsnInfo(asn.getAutonomousSystemNumber(), asn.getAutonomousSystemOrganization());
             }
+        } catch (AddressNotFoundException e) {
+            // Normal: the address is simply not in the GeoIP database (e.g. private/unknown IP).
+            LOG.warn("ASN lookup: address {} not found in the GeoIP database", adr.getHostAddress());
         } catch (Exception e) {
-            log.error("Error while looking up ASN for ip address: {}", adr, e);
+            LOG.error("ASN lookup failed for {}", adr.getHostAddress(), e);
         }
         return null;
     }
