@@ -7,6 +7,7 @@ import at.rtr.rmbt.request.ResultRequest;
 import at.rtr.rmbt.request.SignalResultRequest;
 import at.rtr.rmbt.response.TestResponse;
 import at.rtr.rmbt.utils.GeometryUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.locationtech.jts.geom.Geometry;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +26,7 @@ public class TestMapperImpl implements TestMapper {
 
     @Override
     public void updateTestWithSignalResultRequest(SignalResultRequest signalResultRequest, Test test) {
-        test.setClientVersion(signalResultRequest.getClientVersion());
+        test.setClientVersion(StringUtils.left(signalResultRequest.getClientVersion(), 50));
         test.setClientLanguage(signalResultRequest.getClientLanguage());
         test.setPlatform(signalResultRequest.getPlatform());
         test.setOsVersion(signalResultRequest.getOsVersion());
@@ -50,7 +51,7 @@ public class TestMapperImpl implements TestMapper {
 
     @Override
     public void updateTestWithResultRequest(ResultRequest resultRequest, Test test) {
-        test.setClientVersion(resultRequest.getClientVersion());
+        test.setClientVersion(StringUtils.left(resultRequest.getClientVersion(), 10));
         test.setClientName(resultRequest.getClientName());
         test.setClientLanguage(resultRequest.getClientLanguage());
         test.setUploadSpeed(resultRequest.getUploadSpeed());
@@ -100,6 +101,7 @@ public class TestMapperImpl implements TestMapper {
         test.setTestErrorCause(resultRequest.getTestErrorCause());
         test.setSubmissionRetryCount(resultRequest.getTestSubmissionRetryCount());
         test.setCertMode(resultRequest.getCertMode());
+        test.setApn(resultRequest.getTelephonyAPN());
     }
 
     @Override
@@ -117,7 +119,7 @@ public class TestMapperImpl implements TestMapper {
 
     @Override
     public void updateTestWithCoverageResultRequest(CoverageResultRequest coverageResultRequest, Test test) {
-        test.setClientVersion(coverageResultRequest.getClientVersion());
+        test.setClientVersion(StringUtils.left(coverageResultRequest.getClientVersion(), 10));
         test.setClientLanguage(coverageResultRequest.getClientLanguage());
         test.setPlatform(coverageResultRequest.getPlatform());
         test.setOsVersion(coverageResultRequest.getOsVersion());
@@ -138,6 +140,19 @@ public class TestMapperImpl implements TestMapper {
         test.setNetworkType(coverageResultRequest.getNetworkType());
         test.setNetworkIsRoaming(coverageResultRequest.getTelephonyNetworkIsRoaming());
         test.setTestErrorCause(coverageResultRequest.getTestErrorCause());
+        test.setNetworkOperator(coverageResultRequest.getTelephonyNetworkOperator());
+        test.setNetworkSimOperator(coverageResultRequest.getTelephonyNetworkSimOperator());
+        test.setClientIpLocal(coverageResultRequest.getTestIpLocal());
+        test.setTemperature(coverageResultRequest.getTemperature());
+        test.setTimezone(coverageResultRequest.getTimezone());
+        test.setApn(coverageResultRequest.getTelephonyAPN());
+        test.setSubmissionRetryCount(
+                coverageResultRequest.getSubmissionRetryCount() == null
+                        ? null
+                        : Math.toIntExact(coverageResultRequest.getSubmissionRetryCount())
+        );
+
+
 
 }
 }

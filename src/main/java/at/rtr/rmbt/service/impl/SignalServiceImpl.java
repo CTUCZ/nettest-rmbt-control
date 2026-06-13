@@ -67,6 +67,7 @@ public class SignalServiceImpl implements SignalService {
     private final TestServerService testServerService;
     private final SettingsRepository settingsRepository;
     private final LoopModeSettingsService loopModeSettingsService;
+    private final CellLocationService cellLocationService;
 
 
     @Override
@@ -318,6 +319,9 @@ public class SignalServiceImpl implements SignalService {
 
         updateIpAddress(signalResultRequest.getTestIpLocal(), updatedTest);
 
+        // cellLocations
+        processCellLocation(signalResultRequest.getCellLocations(), updatedTest);
+
         processGeoLocation(signalResultRequest.getGeoLocations(), updatedTest);
 
         processRadioInfo(signalResultRequest.getRadioInfo(), updatedTest);
@@ -354,11 +358,18 @@ public class SignalServiceImpl implements SignalService {
                 .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.STARTED_TEST_NOT_FOUND, testUuid)));
         updatedTest.setStatus(TestStatus.COVERAGE);
 
-
         testMapper.updateTestWithCoverageResultRequest(coverageResultRequest, updatedTest);
 
         updateIpAddress(coverageResultRequest.getTestIpLocal(), updatedTest);
 
+        // cellLocations
+        processCellLocation(coverageResultRequest.getCellLocations(), updatedTest);
+
+        // geoLocations
+        processGeoLocation(coverageResultRequest.getGeoLocations(), updatedTest);
+
+        // radioInfo (cells, signals)
+        processRadioInfo(coverageResultRequest.getRadioInfo(), updatedTest);
 
         log.info("Updated test before save = " + updatedTest);
         testMapper.updateTestLocation(updatedTest);
@@ -481,6 +492,12 @@ public class SignalServiceImpl implements SignalService {
         }
     }
 
+    private void processCellLocation(List<CellLocationRequest>  cellLocations, Test updatedTest) {
+        if (Objects.nonNull(cellLocations)) {
+            cellLocationService.saveCellLocationRequests(cellLocations, updatedTest);
+        }
+    }
+
     private void processFences(List<FencesRequest>  fences, Test updatedTest) {
         if (Objects.nonNull(fences)) {
             fencesService.processFencesRequests(fences, updatedTest);
@@ -598,6 +615,7 @@ public class SignalServiceImpl implements SignalService {
     }
 
     // Utility: Hex encoding for debug prints
+    @SuppressWarnings("unused")
     private static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
