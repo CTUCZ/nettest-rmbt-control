@@ -30,9 +30,13 @@ public abstract class GeoIpHelper
 
     private static final Object LOOKUP_SERVICE_LOCK = new Object();
 
-    // CTU: path of the COUNTRY database is configurable via app.geoIp.dbPath (injected by GeoIpConfig).
+    // CTU: path of the COUNTRY database is configurable via app.geoIp.countryDbPath (injected by GeoIpConfig).
     @Setter
-    private static String geoIpDbPath = "/var/lib/GeoIP/GeoLite2-Country.mmdb";
+    private static String geoIpCountryDbPath = "/var/lib/GeoIP/GeoLite2-Country.mmdb";
+
+    // CTU: path of the ASN database is configurable via app.geoIp.asnDbPath (injected by GeoIpConfig).
+    @Setter
+    private static String geoIpAsnDbPath = "/var/lib/GeoIP/GeoLite2-ASN.mmdb";
 
     public enum DbType { COUNTRY, ASN }
 
@@ -67,13 +71,14 @@ public abstract class GeoIpHelper
                 switch (type) {
                     case COUNTRY: {
                         // CTU: configurable path (was hardcoded upstream)
-                        File countryDb = new File(geoIpDbPath);
+                        File countryDb = new File(geoIpCountryDbPath);
                         countryLookupService = new DatabaseReader.Builder(countryDb).build();
                         countryNextRetryAtMs = 0L; // success -> allow normal operation
                         return countryLookupService;
                     }
                     case ASN: {
-                        File asnDb = new File("/var/lib/GeoIP/GeoLite2-ASN.mmdb");
+                        // CTU: configurable path (was hardcoded upstream)
+                        File asnDb = new File(geoIpAsnDbPath);
                         asnLookupService = new DatabaseReader.Builder(asnDb).build();
                         asnNextRetryAtMs = 0L; // success
                         return asnLookupService;

@@ -82,7 +82,8 @@ app:
       - RTR-Netztest
       - RMBTel
   geoIp:
-    dbPath: /var/lib/GeoIP/GeoLite2-Country.mmdb
+    countryDbPath: /var/lib/GeoIP/GeoLite2-Country.mmdb
+    asnDbPath: /var/lib/GeoIP/GeoLite2-ASN.mmdb
 
 application-version:
   host: rtr-control-default

@@ -10,13 +10,19 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class GeoIpConfig {
 
-    @Value( "${app.geoIp.dbPath}")
-    private String geoIpDbPath;
+    @Value( "${app.geoIp.countryDbPath}")
+    private String geoIpCountryDbPath;
+
+    @Value( "${app.geoIp.asnDbPath}")
+    private String geoIpAsnDbPath;
 
     @PostConstruct
     public void init() {
-        if(StringUtils.hasText(geoIpDbPath)) {
-            GeoIpHelper.setGeoIpDbPath(geoIpDbPath);
+        if(StringUtils.hasText(geoIpCountryDbPath)) {
+            GeoIpHelper.setGeoIpCountryDbPath(geoIpCountryDbPath);
+        }
+        if(StringUtils.hasText(geoIpAsnDbPath)) {
+            GeoIpHelper.setGeoIpAsnDbPath(geoIpAsnDbPath);
         }
     }
 }
