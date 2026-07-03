@@ -142,6 +142,24 @@ public class TestSettingsRequest {
     @Schema(description = "Referrer of embedding website in case of iframe measurement")
     private String referrer;
 
+    @Schema(description = "Google Play Integrity token (standard request), opaque encrypted value, up to several KB")
+    @JsonProperty("integrity_token")
+    private String integrityToken;
+
+    @Schema(description = "Client-side UNIX timestamp in ms taken when the integrity token was requested; " +
+            "raw decimal text, input of the request hash (never validated against server time)", example = "1719912345678")
+    @JsonProperty("integrity_timestamp")
+    private String integrityTimestamp;
+
+    @Schema(description = "Reason the integrity token could not be obtained " +
+            "(NOT_AVAILABLE, PREPARE_FAILED, REQUEST_FAILED, TIMEOUT); parsed leniently", example = "TIMEOUT")
+    @JsonProperty("integrity_error")
+    private String integrityError;
+
+    @Schema(description = "Optional diagnostic detail for integrity_error, max 200 chars")
+    @JsonProperty("integrity_error_detail")
+    private String integrityErrorDetail;
+
     public enum ProtocolVersion {
         @JsonProperty("ipv4")
         IPV4("ipv4"),

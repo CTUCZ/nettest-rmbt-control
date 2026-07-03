@@ -5,7 +5,6 @@ import at.rtr.rmbt.advice.RtrAdvice;
 import at.rtr.rmbt.enums.*;
 import at.rtr.rmbt.facade.TestSettingsFacade;
 import at.rtr.rmbt.request.TestSettingsRequest;
-import at.rtr.rmbt.response.ErrorResponse;
 import at.rtr.rmbt.response.TestSettingsResponse;
 import org.assertj.core.util.Lists;
 import org.junit.Before;
@@ -81,7 +80,11 @@ public class RegistrationControllerTest {
             ),
             Collections.emptyList(),
             MeasurementType.DEDICATED,
-            null
+            null,   // referrer
+            null,   // integrityToken
+            null,   // integrityTimestamp
+            null,   // integrityError
+            null    // integrityErrorDetail
         );
 
         TestSettingsResponse testSettingsResponse = new TestSettingsResponse(
@@ -102,7 +105,7 @@ public class RegistrationControllerTest {
             "5",
             "a165c0a4-cc23-4e39-a1b3-8a111a32e755",
             "provider",
-            new ErrorResponse(),
+            null,
             Lists.emptyList()
         );
 

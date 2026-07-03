@@ -86,8 +86,9 @@ public class TestSettingsResponse {
     private String provider;
 
     @JsonProperty("error_flags")
-    @Schema(description = "Error flags")
-    private ErrorResponse errorFlags;
+    @Schema(description = "Error flags understood by clients; the only value ever sent is TEST_REJECTED " +
+            "(deployed clients throw on unknown values)", example = "[\"TEST_REJECTED\"]")
+    private List<String> errorFlags;
 
     @JsonProperty("error")
     @Schema(description = "Error list", example = "[\"First error\", \"Second error\"]")

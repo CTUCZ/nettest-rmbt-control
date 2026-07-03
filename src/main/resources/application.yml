@@ -97,6 +97,25 @@ app:
   geoIp:
     countryDbPath: /var/lib/GeoIP/GeoLite2-Country.mmdb
     asnDbPath: /var/lib/GeoIP/GeoLite2-ASN.mmdb
+  integrity:
+    # Play Integrity verification of POST /testRequest (see db/migration/CTU_integrity_check_migration.sql).
+    # Disabled by default; production enables it via deployment overrides (context.xml / env).
+    enabled: false
+    package-name: cz.ctu.rmbt.android.prod
+    # Base64 web-safe (no padding) digests of the Google-managed app signing key (Play Console -> App integrity).
+    # Empty = certificate check skipped (bootstrap only).
+    certificate-digests: []
+    credentials-file: ${CONTROL_INTEGRITY_CREDENTIALS:}
+    decode-timeout-ms: 3000
+    freshness-window-ms: 300000
+    max-token-bytes: 20480
+    enforcement:
+      # monitor | enforce. "certified" is inactive until the app sends a cert indication in /testRequest.
+      certified: monitor
+      regular: monitor
+    reject-errors:
+      - NOT_AVAILABLE
+    reject-missing-fields: false
 
 application-version:
   host: rtr-control-default
