@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.UnknownHttpStatusCodeException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -95,6 +98,17 @@ public class PlayIntegrityVerdictClientTest {
     }
 
     @Test
+    public void decode_whenGoogleReturns404_expectUnavailable() {
+        // Given: 404 means OUR misconfiguration (wrong package-name in the URL, or the Play
+        // Integrity API not enabled for the project), not an invalid client token - must map to
+        // fail-open UNAVAILABLE, otherwise enforce mode rejects every Android measurement
+        server.expect(requestTo(DECODE_URL)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        // When / Then
+        assertEquals(IntegrityDecodeResult.Outcome.UNAVAILABLE, client.decode("t").getOutcome());
+    }
+
+    @Test
     public void decode_whenGoogleReturns503_expectUnavailable() {
         // Given
         server.expect(requestTo(DECODE_URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
@@ -120,5 +134,42 @@ public class PlayIntegrityVerdictClientTest {
 
         // When / Then
         assertEquals(IntegrityDecodeResult.Outcome.UNAVAILABLE, client.decode("t").getOutcome());
+    }
+
+    @Test
+    public void decode_whenNonIanaClientStatus_expectInvalidToken() {
+        // Given: RestTemplate throws UnknownHttpStatusCodeException (not HttpClientErrorException)
+        // for non-IANA-registered codes; a 4xx-range one is still the client's fault
+        // Note: the first matcher must be typed (anyString(), not any()) so javac resolves the
+        // postForObject(String, Object, Class, Object...) overload actually used in production -
+        // an untyped any() lets the compiler pick the unrelated postForObject(URI, ...) overload,
+        // which the real call never hits, silently leaving the stub un-triggered.
+        RestTemplate mockRestTemplate = mock(RestTemplate.class);
+        when(mockRestTemplate.postForObject(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(at.rtr.rmbt.dto.PlayIntegrityDecodeResponse.class)))
+                .thenThrow(new UnknownHttpStatusCodeException(477, "raw", null, null, null));
+        client = new PlayIntegrityVerdictClient(mockRestTemplate, () -> "test-access-token", new IntegrityProperties());
+
+        // When
+        IntegrityDecodeResult result = client.decode("t");
+
+        // Then
+        assertEquals(IntegrityDecodeResult.Outcome.INVALID_TOKEN, result.getOutcome());
+    }
+
+    @Test
+    public void decode_whenNonIanaServerStatus_expectUnavailable() {
+        // Given: a non-IANA 5xx-range code must still fail open, not reject the client's token
+        RestTemplate mockRestTemplate = mock(RestTemplate.class);
+        when(mockRestTemplate.postForObject(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(at.rtr.rmbt.dto.PlayIntegrityDecodeResponse.class)))
+                .thenThrow(new UnknownHttpStatusCodeException(577, "raw", null, null, null));
+        client = new PlayIntegrityVerdictClient(mockRestTemplate, () -> "test-access-token", new IntegrityProperties());
+
+        // When
+        IntegrityDecodeResult result = client.decode("t");
+
+        // Then
+        assertEquals(IntegrityDecodeResult.Outcome.UNAVAILABLE, result.getOutcome());
     }
 }

@@ -58,12 +58,13 @@ public class IntegrityVerdictEvaluator {
             failed.add(CHECK_APP_NOT_RECOGNIZED);
         }
 
-        if (properties.getCertificateDigests().isEmpty()) {
+        List<String> configuredDigests = properties.getCertificateDigests();
+        if (configuredDigests.isEmpty()) {
             log.warn("Certificate digest check skipped: app.integrity.certificate-digests is empty");
         } else {
             List<String> digests = appIntegrity == null ? null : appIntegrity.getCertificateSha256Digest();
             boolean digestOk = digests != null && digests.stream()
-                    .anyMatch(d -> properties.getCertificateDigests().contains(d));
+                    .anyMatch(configuredDigests::contains);
             if (!digestOk) {
                 failed.add(CHECK_CERT_DIGEST_MISMATCH);
             }

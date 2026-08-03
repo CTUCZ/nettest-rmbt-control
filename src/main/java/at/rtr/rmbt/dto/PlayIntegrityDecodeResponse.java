@@ -9,8 +9,9 @@ import java.util.List;
 
 /**
  * Typed subset of the {@code decodeIntegrityToken} response. Every nested object may be missing:
- * Google omits appIntegrity details and device verdicts when the app is not PLAY_RECOGNIZED or
- * the token was replayed (UNEVALUATED).
+ * per Google's docs, {@code appIntegrity.packageName}/{@code certificateSha256Digest} are omitted
+ * only when {@code appRecognitionVerdict} is UNEVALUATED (e.g. the token was replayed or expired)
+ * - NOT for UNRECOGNIZED_VERSION, where they are still populated.
  */
 @Getter
 @Setter
@@ -49,7 +50,7 @@ public class PlayIntegrityDecodeResponse {
     public static class AppIntegrity {
         private String appRecognitionVerdict;
         private String packageName;
-        /** Base64 web-safe (no padding) digests; only populated when the app is recognized. */
+        /** Base64 web-safe (no padding) digests; omitted only when appRecognitionVerdict is UNEVALUATED. */
         private List<String> certificateSha256Digest;
     }
 

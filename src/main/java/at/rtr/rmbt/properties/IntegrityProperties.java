@@ -1,7 +1,9 @@
 package at.rtr.rmbt.properties;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
@@ -50,6 +52,33 @@ public class IntegrityProperties {
 
     /** Reject Android requests without any integrity fields (old app versions). Enable only after adoption. */
     private boolean rejectMissingFields = false;
+
+    /**
+     * Fail fast on a misconfigured security switch rather than silently falling back to monitor
+     * mode: the policy decision service treats anything other than exactly "enforce"
+     * (case-insensitive) as monitor, so a deployment typo such as "enforced" or "true" would
+     * otherwise disable enforcement without any indication. Defaults are always valid, so the
+     * application still starts with no overrides at all; only an explicit, wrong override fails
+     * startup.
+     */
+    @PostConstruct
+    public void validate() {
+        validateEnforcementValue("regular", enforcement.getRegular());
+        validateEnforcementValue("certified", enforcement.getCertified());
+        // Fix B4: an empty packageName reaches deep into IntegrityVerdictEvaluator's package-name
+        // comparison and would NPE there instead of failing fast here at startup.
+        if (enabled && StringUtils.isBlank(packageName)) {
+            throw new IllegalStateException(
+                    "app.integrity.package-name must not be blank when app.integrity.enabled=true");
+        }
+    }
+
+    private void validateEnforcementValue(String fieldName, String value) {
+        if (!"monitor".equalsIgnoreCase(value) && !"enforce".equalsIgnoreCase(value)) {
+            throw new IllegalStateException("app.integrity.enforcement." + fieldName
+                    + " must be exactly \"monitor\" or \"enforce\" (case-insensitive), but was: " + value);
+        }
+    }
 
     @Getter
     @Setter

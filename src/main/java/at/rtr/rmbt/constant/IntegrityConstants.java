@@ -27,4 +27,10 @@ public interface IntegrityConstants {
     String CHECK_REPLAY = "REPLAY";
     /** Prefix of the failed_checks entry carrying the digest of a replayed token (support lookup). */
     String CHECK_REPLAY_DIGEST_PREFIX = "REPLAY_DIGEST:";
+
+    // Stable log markers for log-based alerting - Zabbix matches "INTEGRITY_ALERT reason=<REASON>"
+    // in the application log, one line per affected request. Do NOT rephrase or remove.
+    String ALERT_QUOTA_EXCEEDED = "INTEGRITY_ALERT reason=QUOTA_EXCEEDED";
+    String ALERT_GOOGLE_UNAVAILABLE = "INTEGRITY_ALERT reason=GOOGLE_UNAVAILABLE";
+    String ALERT_CHECK_FAILED = "INTEGRITY_ALERT reason=CHECK_FAILED";
 }

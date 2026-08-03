@@ -12,11 +12,14 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ApiLoggingFilter implements Filter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiLoggingFilter.class);
+    private static final Pattern INTEGRITY_TOKEN_PATTERN =
+            Pattern.compile("(\"integrity_token\"\\s*:\\s*\")([^\"]{0,24})[^\"]*(\")");
     private final String requestIdParamName;
 
     public ApiLoggingFilter(String requestIdParamName) {
@@ -47,7 +50,7 @@ public class ApiLoggingFilter implements Filter {
             MDC.put("REQUEST_ID", requestId);
             final StringBuilder logRequest = new StringBuilder("HTTP ").append(httpServletRequest.getMethod())
                     .append(" \"").append(httpServletRequest.getServletPath()).append("\" ").append(", parameters=")
-                    .append(requestMap).append(", body=").append(bufferedRequest.getRequestBody())
+                    .append(requestMap).append(", body=").append(redactIntegrityToken(bufferedRequest.getRequestBody()))
                     .append(", headers={").append(Collections.list(((HttpServletRequest) request)
                                     .getHeaderNames()).stream()
                             .map(r -> String.format("\"%s\": \"%s\"", r, ((HttpServletRequest) request).getHeader(r)))
@@ -117,6 +120,18 @@ public class ApiLoggingFilter implements Filter {
         }
         final String ct = contentType.toLowerCase();
         return ct.startsWith("text/") || ct.contains("json") || ct.contains("xml");
+    }
+
+    /**
+     * Replaces the integrity_token value with a short prefix: the opaque token is several KB
+     * (log volume) and within its freshness window it is sensitive material that does not belong
+     * in logs. Analogous to the existing password parameter masking.
+     */
+    static String redactIntegrityToken(String body) {
+        if (body == null || !body.contains("integrity_token")) {
+            return body;
+        }
+        return INTEGRITY_TOKEN_PATTERN.matcher(body).replaceAll("$1$2...[REDACTED]$3");
     }
 
     private Map<String, String> getTypesafeRequestMap(HttpServletRequest request) {

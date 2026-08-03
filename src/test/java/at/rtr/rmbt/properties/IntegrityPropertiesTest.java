@@ -26,4 +26,25 @@ public class IntegrityPropertiesTest {
         assertFalse(properties.isRejectMissingFields());
         assertTrue(properties.getCertificateDigests().isEmpty());
     }
+
+    @Test(expected = IllegalStateException.class)
+    public void validate_whenEnforcementValueInvalid_expectException() {
+        // Given: a deployment typo must never silently fall back to monitor mode
+        IntegrityProperties properties = new IntegrityProperties();
+        properties.getEnforcement().setRegular("enforced");
+
+        // When
+        properties.validate();
+
+        // Then: IllegalStateException expected (see @Test annotation)
+    }
+
+    @Test
+    public void validate_whenDefaults_expectNoException() {
+        // Given: no YAML overrides at all
+        IntegrityProperties properties = new IntegrityProperties();
+
+        // When / Then: the application must always be able to start with defaults
+        properties.validate();
+    }
 }

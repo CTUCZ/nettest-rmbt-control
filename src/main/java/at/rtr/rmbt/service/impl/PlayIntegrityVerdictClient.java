@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.UnknownHttpStatusCodeException;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -53,16 +54,31 @@ public class PlayIntegrityVerdictClient implements IntegrityVerdictClient {
                 log.warn("decodeIntegrityToken quota exceeded (HTTP 429)");
                 return result(IntegrityDecodeResult.Outcome.QUOTA_EXCEEDED, null, start);
             }
-            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED || e.getStatusCode() == HttpStatus.FORBIDDEN) {
-                // OUR credentials problem (expired/revoked service account), not the client's token -
-                // in enforce mode this must never fail-close every Android measurement
-                log.error("decodeIntegrityToken auth failure (HTTP {}) - check the service-account credentials",
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED || e.getStatusCode() == HttpStatus.FORBIDDEN
+                    || e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                // OUR misconfiguration, not the client's token: 401/403 is an expired/revoked
+                // service account, 404 is a wrong package-name in the request URL or the Play
+                // Integrity API not being enabled for the project - in enforce mode this must
+                // never fail-close every Android measurement
+                log.error("decodeIntegrityToken failed (HTTP {}) - check the service-account credentials, "
+                                + "the configured package-name and that the Play Integrity API is enabled",
                         e.getStatusCode().value());
                 return result(IntegrityDecodeResult.Outcome.UNAVAILABLE, null, start);
             }
             // Other 4xx = the submitted token is invalid; must not fall back to fail-open UNAVAILABLE
             log.info("decodeIntegrityToken rejected the token: HTTP {}", e.getStatusCode().value());
             return result(IntegrityDecodeResult.Outcome.INVALID_TOKEN, null, start);
+        } catch (UnknownHttpStatusCodeException e) {
+            // RestTemplate throws this (a plain RestClientException, not HttpClientErrorException)
+            // for non-IANA-registered status codes. A non-standard 4xx is still the client's fault;
+            // anything else falls back to fail-open UNAVAILABLE like other unrecognized failures.
+            int status = e.getRawStatusCode();
+            if (status >= 400 && status < 500) {
+                log.info("decodeIntegrityToken rejected the token: non-standard HTTP {}", status);
+                return result(IntegrityDecodeResult.Outcome.INVALID_TOKEN, null, start);
+            }
+            log.warn("decodeIntegrityToken unavailable: non-standard HTTP {}", status);
+            return result(IntegrityDecodeResult.Outcome.UNAVAILABLE, null, start);
         } catch (RestClientException e) {
             log.warn("decodeIntegrityToken unavailable: {}", e.getMessage());
             return result(IntegrityDecodeResult.Outcome.UNAVAILABLE, null, start);

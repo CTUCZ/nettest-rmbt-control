@@ -96,7 +96,10 @@ public class IntegrityVerdictEvaluatorTest {
 
     @Test
     public void evaluate_whenAppNotRecognized_expectAppCheckFailed() {
-        // Given: sideloaded modified build; Google then omits package/digest fields entirely
+        // Given: sideloaded/modified build -> UNRECOGNIZED_VERSION. Per Google's docs, package/
+        // digest fields are only omitted when appRecognitionVerdict is UNEVALUATED, not for
+        // UNRECOGNIZED_VERSION - but evaluate() must stay null-safe regardless, so this test nulls
+        // them out explicitly to pin that defensive behavior.
         PlayIntegrityDecodeResponse.Verdict verdict = passingVerdict();
         verdict.getAppIntegrity().setAppRecognitionVerdict("UNRECOGNIZED_VERSION");
         verdict.getAppIntegrity().setPackageName(null);

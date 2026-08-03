@@ -15,9 +15,15 @@ import at.rtr.rmbt.request.TestSettingsRequest;
 import at.rtr.rmbt.response.TestSettingsResponse;
 import at.rtr.rmbt.service.ClientService;
 import at.rtr.rmbt.service.IntegrityVerdictClient;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,10 +54,14 @@ public class IntegrityServiceImplTest {
     private MessageSource messageSource;
 
     private IntegrityServiceImpl service;
+    private ListAppender<ILoggingEvent> logAppender;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUp() {
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        ((Logger) LoggerFactory.getLogger(IntegrityServiceImpl.class)).addAppender(logAppender);
         properties = new IntegrityProperties();
         properties.setEnabled(true);
         applicationProperties = new ApplicationProperties(
@@ -75,6 +85,16 @@ public class IntegrityServiceImplTest {
 
         service = new IntegrityServiceImpl(properties, applicationProperties, verdictClientProvider,
                 evaluator, policy, repository, clientService, messageSource);
+    }
+
+    @After
+    public void tearDown() {
+        ((Logger) LoggerFactory.getLogger(IntegrityServiceImpl.class)).detachAppender(logAppender);
+    }
+
+    private boolean alertLogged(Level level, String marker) {
+        return logAppender.list.stream()
+                .anyMatch(e -> e.getLevel() == level && e.getFormattedMessage().contains(marker));
     }
 
     private TestSettingsRequest requestWithToken() {
@@ -164,6 +184,9 @@ public class IntegrityServiceImplTest {
         assertEquals(20, captor.getValue().getClientError().length());
         assertEquals(200, captor.getValue().getClientErrorDetail().length());
         verifyNoInteractions(verdictClient);
+        // The policy must decide on the RAW client value, not the column-truncated one: a future
+        // configured reject value longer than CLIENT_ERROR_MAX must still be able to match.
+        verify(policy).decide(any(), eq(IntegrityStatus.CLIENT_ERROR), eq("SOME_FUTURE_VALUE_LONGER_THAN_COLUMN"));
     }
 
     @Test
@@ -339,8 +362,9 @@ public class IntegrityServiceImplTest {
     }
 
     @Test
-    public void check_whenOtherIntegrityViolation_expectExceptionPropagated() {
-        // Given: a non-replay constraint violation must surface, not be misclassified as replay
+    public void check_whenOtherIntegrityViolation_expectNullFailOpen() {
+        // Given: a non-replay constraint violation must surface in the log, not be misclassified
+        // as replay - but must also never escape check() as an exception (fail-open, Fix B1)
         PlayIntegrityDecodeResponse.Verdict verdict = new PlayIntegrityDecodeResponse.Verdict();
         when(verdictClient.decode(any())).thenReturn(IntegrityDecodeResult.builder()
                 .outcome(IntegrityDecodeResult.Outcome.OK).verdict(verdict).latencyMs(20).build());
@@ -348,13 +372,31 @@ public class IntegrityServiceImplTest {
         when(repository.save(any(TestIntegrity.class)))
                 .thenThrow(new DataIntegrityViolationException("null value in column \"provider\" violates not-null constraint"));
 
-        // When / Then
-        try {
-            service.check(requestWithToken());
-            fail("expected DataIntegrityViolationException");
-        } catch (DataIntegrityViolationException expected) {
-            verify(repository, times(1)).save(any(TestIntegrity.class));
-        }
+        // When
+        IntegrityCheckOutcome outcome = service.check(requestWithToken());
+
+        // Then: no replay fallback second save, and the request is allowed through
+        assertNull(outcome);
+        verify(repository, times(1)).save(any(TestIntegrity.class));
+    }
+
+    @Test
+    public void check_whenPersistenceThrowsUnexpectedly_expectNullFailOpen() {
+        // Given: the test_integrity table missing (e.g. WAR deployed before ops applies the
+        // migration) must never turn into an HTTP 500 for every Android /testRequest
+        PlayIntegrityDecodeResponse.Verdict verdict = new PlayIntegrityDecodeResponse.Verdict();
+        when(verdictClient.decode(any())).thenReturn(IntegrityDecodeResult.builder()
+                .outcome(IntegrityDecodeResult.Outcome.OK).verdict(verdict).latencyMs(20).build());
+        when(evaluator.evaluate(any(), any(), any())).thenReturn(List.of());
+        when(repository.save(any(TestIntegrity.class)))
+                .thenThrow(new org.springframework.dao.InvalidDataAccessResourceUsageException(
+                        "relation \"test_integrity\" does not exist"));
+
+        // When
+        IntegrityCheckOutcome outcome = service.check(requestWithToken());
+
+        // Then
+        assertNull(outcome);
     }
 
     @Test
@@ -417,12 +459,81 @@ public class IntegrityServiceImplTest {
     public void attachTest_expectDelegatesToRepository() {
         // Given
         UUID testUuid = UUID.randomUUID();
+        when(repository.attachTest(42L, testUuid)).thenReturn(1);
 
         // When
         service.attachTest(42L, testUuid);
 
         // Then
         verify(repository).attachTest(42L, testUuid);
+    }
+
+    @Test
+    public void attachTest_whenRepositoryThrows_expectNoPropagation() {
+        // Given: the facade already committed and returned test_token to the client at this
+        // point - a failing UPDATE must never break the response (fail-open, Fix B1)
+        UUID testUuid = UUID.randomUUID();
+        when(repository.attachTest(any(), any())).thenThrow(new RuntimeException("boom"));
+
+        // When / Then: no exception propagates out
+        service.attachTest(42L, testUuid);
+    }
+
+    @Test
+    public void check_whenQuotaExceeded_expectQuotaAlertLogged() {
+        // Given
+        when(verdictClient.decode(any())).thenReturn(IntegrityDecodeResult.builder()
+                .outcome(IntegrityDecodeResult.Outcome.QUOTA_EXCEEDED).latencyMs(30).build());
+
+        // When
+        service.check(requestWithToken());
+
+        // Then: stable marker line for log-based alerting (Zabbix)
+        assertTrue(alertLogged(Level.WARN, ALERT_QUOTA_EXCEEDED));
+    }
+
+    @Test
+    public void check_whenGoogleUnavailable_expectUnavailableAlertLogged() {
+        // Given
+        when(verdictClient.decode(any())).thenReturn(IntegrityDecodeResult.builder()
+                .outcome(IntegrityDecodeResult.Outcome.UNAVAILABLE).latencyMs(30).build());
+
+        // When
+        service.check(requestWithToken());
+
+        // Then
+        assertTrue(alertLogged(Level.WARN, ALERT_GOOGLE_UNAVAILABLE));
+    }
+
+    @Test
+    public void check_whenPersistenceFailsOpen_expectCheckFailedAlertLogged() {
+        // Given: own-infrastructure failure (e.g. missing DB grants) fail-opens - the alert
+        // marker must fire so log-based monitoring notices integrity data is not being recorded
+        PlayIntegrityDecodeResponse.Verdict verdict = new PlayIntegrityDecodeResponse.Verdict();
+        when(verdictClient.decode(any())).thenReturn(IntegrityDecodeResult.builder()
+                .outcome(IntegrityDecodeResult.Outcome.OK).verdict(verdict).latencyMs(20).build());
+        when(evaluator.evaluate(any(), any(), any())).thenReturn(List.of());
+        when(repository.save(any(TestIntegrity.class)))
+                .thenThrow(new org.springframework.dao.InvalidDataAccessResourceUsageException(
+                        "permission denied for sequence test_integrity_uid_seq"));
+
+        // When
+        service.check(requestWithToken());
+
+        // Then
+        assertTrue(alertLogged(Level.ERROR, ALERT_CHECK_FAILED));
+    }
+
+    @Test
+    public void attachTest_whenRepositoryThrows_expectCheckFailedAlertLogged() {
+        // Given
+        when(repository.attachTest(any(), any())).thenThrow(new RuntimeException("boom"));
+
+        // When
+        service.attachTest(42L, UUID.randomUUID());
+
+        // Then
+        assertTrue(alertLogged(Level.ERROR, ALERT_CHECK_FAILED));
     }
 
     @Test

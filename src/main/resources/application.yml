@@ -104,7 +104,7 @@ app:
     package-name: cz.ctu.rmbt.android.prod
     # Base64 web-safe (no padding) digests of the Google-managed app signing key (Play Console -> App integrity).
     # Empty = certificate check skipped (bootstrap only).
-    certificate-digests: []
+    certificate-digests: [mHAMqYkx5T-NnQHn2aiXPUaWzq9-m3UyVX_ToDTZHCE]
     credentials-file: ${CONTROL_INTEGRITY_CREDENTIALS:}
     decode-timeout-ms: 3000
     freshness-window-ms: 300000

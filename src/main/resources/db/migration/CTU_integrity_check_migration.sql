@@ -25,3 +25,11 @@ CREATE INDEX test_integrity_client_uuid_idx ON public.test_integrity (client_uui
 -- removes the row (a legitimate client never reuses a token, so a longer block is harmless).
 CREATE UNIQUE INDEX test_integrity_token_digest_uq ON public.test_integrity (token_digest)
     WHERE token_digest IS NOT NULL;
+
+-- When this script is applied by a role other than the application's DB user, the application
+-- role (default rmbt_control - adjust to the environment) additionally needs:
+--   GRANT SELECT, INSERT, UPDATE ON public.test_integrity TO rmbt_control;
+--   GRANT USAGE, SELECT ON SEQUENCE public.test_integrity_uid_seq TO rmbt_control;
+-- Without the sequence grant every insert fails with "permission denied for sequence
+-- test_integrity_uid_seq" (the check then fail-opens, so measurements still run, but no
+-- integrity data is recorded).

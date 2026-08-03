@@ -34,9 +34,12 @@ public class RegistrationControllerTest {
     @MockitoBean
     private TestSettingsFacade testSettingsFacade;
 
+    @MockitoBean
+    private at.rtr.rmbt.service.IntegrityService integrityService;
+
     @Before
     public void setUp() {
-        RegistrationController registrationController = new RegistrationController(testSettingsFacade);
+        RegistrationController registrationController = new RegistrationController(testSettingsFacade, integrityService);
         mockMvc = MockMvcBuilders.standaloneSetup(registrationController)
             .setControllerAdvice(new RtrAdvice())
             .build();
@@ -44,6 +47,8 @@ public class RegistrationControllerTest {
 
     @Test
     public void updateTestSettings_whenCommonRequest_shouldReturnUpdatedSettings() throws Exception {
+        when(integrityService.check(any())).thenReturn(null);
+
         TestSettingsRequest testSettingsRequest = new TestSettingsRequest(
             TestPlatform.ANDROID,
             14.1,
@@ -120,5 +125,56 @@ public class RegistrationControllerTest {
             .andExpect(content().json(TestUtils.asJsonString(testSettingsResponse)));
 
         verify(testSettingsFacade).updateTestSettings(eq(testSettingsRequest), any(), any());
+    }
+
+    @Test
+    public void updateTestSettings_whenIntegrityRejected_shouldReturnRejectionWithoutCallingFacade() throws Exception {
+        // Given
+        at.rtr.rmbt.dto.IntegrityCheckOutcome rejected = at.rtr.rmbt.dto.IntegrityCheckOutcome.builder()
+            .recordUid(42L)
+            .action(at.rtr.rmbt.enums.IntegrityAction.REJECTED)
+            .build();
+        when(integrityService.check(any())).thenReturn(rejected);
+        TestSettingsResponse rejection = TestSettingsResponse.builder()
+            .errorList(java.util.List.of("rejected"))
+            .errorFlags(java.util.List.of("TEST_REJECTED"))
+            .build();
+        when(integrityService.buildRejectionResponse(eq("en"))).thenReturn(rejection);
+
+        // When / Then
+        mockMvc.perform(
+            post("/testRequest")
+                .content("{\"language\":\"en\",\"integrity_token\":\"bad\",\"uuid\":\"41ab60bd-becf-45c8-abbc-0e85b59d65ca\"}")
+                .contentType(MediaType.APPLICATION_JSON)
+                .characterEncoding("utf-8")
+        ).andExpect(status().isOk())
+            .andExpect(content().json("{\"error\":[\"rejected\"],\"error_flags\":[\"TEST_REJECTED\"]}"));
+
+        org.mockito.Mockito.verifyNoInteractions(testSettingsFacade);
+    }
+
+    @Test
+    public void updateTestSettings_whenIntegrityAllowedWithRecord_shouldAttachTest() throws Exception {
+        // Given
+        at.rtr.rmbt.dto.IntegrityCheckOutcome allowed = at.rtr.rmbt.dto.IntegrityCheckOutcome.builder()
+            .recordUid(42L)
+            .action(at.rtr.rmbt.enums.IntegrityAction.ALLOWED)
+            .build();
+        when(integrityService.check(any())).thenReturn(allowed);
+        TestSettingsResponse response = TestSettingsResponse.builder()
+            .testUuid("8c8946bb-e251-42f8-b0d1-43f972c2e216")
+            .build();
+        when(testSettingsFacade.updateTestSettings(any(), any(), any())).thenReturn(response);
+
+        // When
+        mockMvc.perform(
+            post("/testRequest")
+                .content("{\"language\":\"en\",\"integrity_token\":\"ok\",\"uuid\":\"41ab60bd-becf-45c8-abbc-0e85b59d65ca\"}")
+                .contentType(MediaType.APPLICATION_JSON)
+                .characterEncoding("utf-8")
+        ).andExpect(status().isOk());
+
+        // Then
+        verify(integrityService).attachTest(eq(42L), eq(java.util.UUID.fromString("8c8946bb-e251-42f8-b0d1-43f972c2e216")));
     }
 }

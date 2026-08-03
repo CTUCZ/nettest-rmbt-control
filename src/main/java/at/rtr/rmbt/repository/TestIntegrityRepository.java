@@ -19,5 +19,5 @@ public interface TestIntegrityRepository extends JpaRepository<TestIntegrity, Lo
     @Transactional
     @Query(value = "UPDATE test_integrity SET test_uid = (SELECT uid FROM test WHERE uuid = CAST(:testUuid AS uuid)), " +
             "modified_date = now() WHERE uid = :recordUid", nativeQuery = true)
-    void attachTest(@Param("recordUid") Long recordUid, @Param("testUuid") UUID testUuid);
+    int attachTest(@Param("recordUid") Long recordUid, @Param("testUuid") UUID testUuid);
 }
