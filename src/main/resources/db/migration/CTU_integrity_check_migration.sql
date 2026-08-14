@@ -33,3 +33,7 @@ CREATE UNIQUE INDEX test_integrity_token_digest_uq ON public.test_integrity (tok
 -- Without the sequence grant every insert fails with "permission denied for sequence
 -- test_integrity_uid_seq" (the check then fail-opens, so measurements still run, but no
 -- integrity data is recorded).
+
+GRANT SELECT, UPDATE, INSERT ON TABLE public.test_integrity TO rmbt_group_control;
+GRANT SELECT ON TABLE public.test_integrity TO rmbt_group_read_only;
+GRANT SELECT, USAGE ON SEQUENCE public.test_integrity_uid_seq TO rmbt_group_control;
