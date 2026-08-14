@@ -1,3 +1,4 @@
+-- 2025: Migration to the new backend, new values and columns
 ALTER TABLE public.test_server ADD coverage bool NULL;
 ALTER TABLE public.test ADD coverage bool NULL;
 ALTER TABLE public.test ADD geom3857 public.geometry(point, 3857) NULL;
