@@ -1,19 +1,3 @@
-/*******************************************************************************
- * Copyright 2013-2016 alladin-IT GmbH
- * Copyright 2013-2016 Rundfunk und Telekom Regulierungs-GmbH (RTR-GmbH)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- ******************************************************************************/
 package at.rtr.rmbt.utils.testscript;
 
 import at.rtr.rmbt.dto.qos.TracerouteResult;
@@ -23,7 +7,7 @@ import org.json.JSONObject;
 
 import java.lang.reflect.Array;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class SystemApi {
@@ -66,15 +50,39 @@ public class SystemApi {
         return o == null;
     }
 
-    public Object coalesce(Object o, Object alternative) {
-        return o == null ? alternative : o;
+    /**
+     * SQL-style COALESCE used by the QoS evaluation scripts, e.g.
+     * {@code nn.coalesce(voip_result_in_mean_jitter, 50000000)}: returns {@code value} when it is
+     * non-null, otherwise the {@code fallback}. Without this the script call throws
+     * "nn.coalesce is not a function", which {@code TestScriptInterpreter.eval} swallows and turns
+     * into a (wrong) test failure.
+     */
+    public Object coalesce(Object value, Object fallback) {
+        return value != null ? value : fallback;
     }
 
-    public String getPayloadType(int value) {
-        return RealtimeTransportProtocol.PayloadType.getByCodecValue(value).name();
+
+    /**
+     * Single entry point for the QoS evaluation script, which calls {@code nn.parseTraceroute(x)}
+     * with either a JSON string, a list of {@link TracerouteResult.PathElement}, or {@code null}.
+     * It is intentionally <em>not</em> overloaded: Nashorn cannot pick between two reference-typed
+     * overloads when the argument is {@code null}, which previously failed with
+     * "Can't unambiguously select between ... parseTraceroute".
+     */
+    public String parseTraceroute(Object path) throws JSONException {
+        if (path == null) {
+            return null;
+        }
+        if (path instanceof String json) {
+            return parseTracerouteFromJson(json);
+        }
+        if (path instanceof List<?> elements) {
+            return parseTracerouteFromPathElements(elements);
+        }
+        return null;
     }
 
-    public String parseTraceroute(String path) throws JSONException {
+    private String parseTracerouteFromJson(String path) throws JSONException {
         final JSONArray traceRoute = new JSONArray(path);
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < traceRoute.length(); i++) {
@@ -93,9 +101,10 @@ public class SystemApi {
         return sb.toString();
     }
 
-    public String parseTraceroute(ArrayList<TracerouteResult.PathElement> path) {
+    private String parseTracerouteFromPathElements(List<?> path) {
         StringBuilder sb = new StringBuilder();
-        for (TracerouteResult.PathElement e : path) {
+        for (Object item : path) {
+            TracerouteResult.PathElement e = (TracerouteResult.PathElement) item;
             sb.append(e.getHost());
             sb.append("  time=");
             try {

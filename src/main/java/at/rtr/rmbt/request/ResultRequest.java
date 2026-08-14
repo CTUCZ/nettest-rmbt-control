@@ -2,6 +2,7 @@ package at.rtr.rmbt.request;
 
 import at.rtr.rmbt.enums.*;
 import at.rtr.rmbt.model.AndroidPermission;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -17,7 +18,8 @@ import java.util.List;
 public class ResultRequest {
 
     @Schema(description = "Platform of device", example = "Android")
-    @JsonProperty(value = "plattform")
+    @JsonAlias(value = "plattform")
+    @JsonProperty(value = "platform")
     private final TestPlatform platform;
 
     @Schema(description = "Client uuid")
@@ -212,13 +214,16 @@ public class ResultRequest {
     @JsonProperty(value = "developer_code")
     private final String developerCode;
 
+    // Not used
     @Schema(description = "User loop mode", example = "true")
     @JsonProperty(value = "user_loop_mode")
     private final boolean loopModeEnabled;
 
-    @Schema(description = "User cert mode", example = "true")
-    @JsonProperty(value = "user_cert_mode")
-    private final Boolean userCertMode;
+    @Schema(description = "Cert mode", example = "true")
+    // CTU alias: clients send user_cert_mode (upstream's canonical name is cert_mode via @JsonProperty)
+    @JsonAlias("user_cert_mode")
+    @JsonProperty(value = "cert_mode")
+    private final Boolean certMode;
 
     @Schema(description = "mcc-mnc of the operator network, mobile networks only", example = "231-06")
     @JsonProperty(value = "telephony_network_operator")
@@ -252,7 +257,7 @@ public class ResultRequest {
     @JsonProperty(value = "telephony_data_state")
     private final Integer telephonyDataState;
 
-    @Schema(description = "Name of the access point, mobile networks only", example = "o2internet")
+    @Schema(description = "Name of the APN, mobile networks only", example = "6g4all")
     @JsonProperty(value = "telephony_apn")
     private final String telephonyAPN;
 
@@ -312,9 +317,7 @@ public class ResultRequest {
     @JsonProperty(value = "last_qos_status")
     private final QosStatus lastQosStatus;
 
-
-    @Schema(description = "Stacktrace of IllegalNetworkChangeException exception grabbed from RMBTClient which was happened during the test.\n" +
-            "May be null if test was success or cancelled")
+    @Schema(description = "Information on error cause")
     @JsonProperty(value = "test_error_cause")
     private final String testErrorCause;
 

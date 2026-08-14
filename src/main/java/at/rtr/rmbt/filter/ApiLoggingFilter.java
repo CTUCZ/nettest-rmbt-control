@@ -12,11 +12,14 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ApiLoggingFilter implements Filter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiLoggingFilter.class);
+    private static final Pattern INTEGRITY_TOKEN_PATTERN =
+            Pattern.compile("(\"integrity_token\"\\s*:\\s*\")([^\"]{0,24})[^\"]*(\")");
     private final String requestIdParamName;
 
     public ApiLoggingFilter(String requestIdParamName) {
@@ -30,6 +33,15 @@ public class ApiLoggingFilter implements Filter {
             HttpServletRequest httpServletRequest = (HttpServletRequest) request;
             HttpServletResponse httpServletResponse = (HttpServletResponse) response;
 
+            // Swagger UI / OpenAPI spec and other static infrastructure are not RMBT API calls and
+            // must not be wrapped: the BufferedResponseWrapper below corrupts springdoc's spec
+            // response (it would otherwise be returned as HTTP 200 with an empty body). Pass these
+            // through untouched, against the original request/response.
+            if (isInfrastructurePath(httpServletRequest.getServletPath())) {
+                chain.doFilter(request, response);
+                return;
+            }
+
             Map<String, String> requestMap = this.getTypesafeRequestMap(httpServletRequest);
             BufferedRequestWrapper bufferedRequest = new BufferedRequestWrapper(httpServletRequest);
             BufferedResponseWrapper bufferedResponse = new BufferedResponseWrapper(httpServletResponse);
@@ -38,7 +50,7 @@ public class ApiLoggingFilter implements Filter {
             MDC.put("REQUEST_ID", requestId);
             final StringBuilder logRequest = new StringBuilder("HTTP ").append(httpServletRequest.getMethod())
                     .append(" \"").append(httpServletRequest.getServletPath()).append("\" ").append(", parameters=")
-                    .append(requestMap).append(", body=").append(bufferedRequest.getRequestBody())
+                    .append(requestMap).append(", body=").append(redactIntegrityToken(bufferedRequest.getRequestBody()))
                     .append(", headers={").append(Collections.list(((HttpServletRequest) request)
                                     .getHeaderNames()).stream()
                             .map(r -> String.format("\"%s\": \"%s\"", r, ((HttpServletRequest) request).getHeader(r)))
@@ -47,17 +59,79 @@ public class ApiLoggingFilter implements Filter {
             try {
                 chain.doFilter(bufferedRequest, bufferedResponse);
             } catch (Throwable a) {
-                LOGGER.error(a.getMessage(), a);
+                if (isClientAbort(a)) {
+                    LOGGER.info("User disconnected before the response was completed: {} {}",
+                            httpServletRequest.getMethod(), httpServletRequest.getServletPath());
+                } else {
+                    LOGGER.error(a.getMessage(), a);
+                }
             } finally {
-                final StringBuilder logResponse = new StringBuilder("HTTP RESPONSE ")
-                        .append(bufferedResponse.getContent());
-                String responseString = logResponse.toString();
-                LOGGER.info(responseString.substring(0, Math.min(responseString.length(), 10000)));
+                // Only log textual response bodies; binary payloads (e.g. application/pdf) would
+                // otherwise dump raw bytes into the log.
+                final String contentType = httpServletResponse.getContentType();
+                if (isTextualContentType(contentType)) {
+                    final String content = bufferedResponse.getContent();
+                    LOGGER.info("HTTP RESPONSE " + content.substring(0, Math.min(content.length(), 10000)));
+                } else {
+                    LOGGER.info("HTTP RESPONSE [" + contentType + " body not logged]");
+                }
                 MDC.clear();
             }
         } catch (Throwable a) {
             LOGGER.error(a.getMessage(), a);
         }
+    }
+
+    /** True if the exception (or any cause) is a client-side disconnect (broken pipe / reset). */
+    private static boolean isClientAbort(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if ("ClientAbortException".equals(c.getClass().getSimpleName())) {
+                return true;
+            }
+            final String m = c.getMessage();
+            if (c instanceof java.io.IOException && m != null
+                    && (m.contains("Broken pipe") || m.contains("Connection reset"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Paths that must bypass request/response buffering: the springdoc OpenAPI spec and Swagger UI
+     * (whose responses the buffering wrapper corrupts), plus webjars and the actuator health probe.
+     * Matched against the context-relative servlet path (e.g. {@code /v3/api-docs}).
+     */
+    private static boolean isInfrastructurePath(String servletPath) {
+        if (servletPath == null) {
+            return false;
+        }
+        return servletPath.startsWith("/v3/api-docs")
+                || servletPath.startsWith("/api-docs")
+                || servletPath.startsWith("/swagger-ui")
+                || servletPath.startsWith("/swagger-resources")
+                || servletPath.startsWith("/webjars")
+                || servletPath.equals("/health");
+    }
+
+    private static boolean isTextualContentType(String contentType) {
+        if (contentType == null) {
+            return true;
+        }
+        final String ct = contentType.toLowerCase();
+        return ct.startsWith("text/") || ct.contains("json") || ct.contains("xml");
+    }
+
+    /**
+     * Replaces the integrity_token value with a short prefix: the opaque token is several KB
+     * (log volume) and within its freshness window it is sensitive material that does not belong
+     * in logs. Analogous to the existing password parameter masking.
+     */
+    static String redactIntegrityToken(String body) {
+        if (body == null || !body.contains("integrity_token")) {
+            return body;
+        }
+        return INTEGRITY_TOKEN_PATTERN.matcher(body).replaceAll("$1$2...[REDACTED]$3");
     }
 
     private Map<String, String> getTypesafeRequestMap(HttpServletRequest request) {

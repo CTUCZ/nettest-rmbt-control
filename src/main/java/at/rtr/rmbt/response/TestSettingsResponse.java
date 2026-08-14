@@ -74,12 +74,8 @@ public class TestSettingsResponse {
     private String testToken;
 
     @JsonProperty("test_numpings")
-    @Schema(description = "Number of pings executed during the test", example = "10")
+    @Schema(description = "Minimum number of pings to be executed during the test", example = "10")
     private String testNumberOfPings;
-
-    @JsonProperty("test_id")
-    @Schema(description = "Id of the test", example = "8772493")
-    private Long testId;
 
     @JsonProperty("loop_uuid")
     @Schema(description = "Generated loop_uuid if it is loop measurement", example = "53d69299-0206-4732-a623-6b0c2fec306d")
@@ -90,8 +86,9 @@ public class TestSettingsResponse {
     private String provider;
 
     @JsonProperty("error_flags")
-    @Schema(description = "Error flags")
-    private ErrorResponse errorFlags;
+    @Schema(description = "Error flags understood by clients; the only value ever sent is TEST_REJECTED " +
+            "(deployed clients throw on unknown values)", example = "[\"TEST_REJECTED\"]")
+    private List<String> errorFlags;
 
     @JsonProperty("error")
     @Schema(description = "Error list", example = "[\"First error\", \"Second error\"]")

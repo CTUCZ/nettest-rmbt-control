@@ -21,11 +21,10 @@ import at.rtr.rmbt.utils.HelperFunctions;
 import com.google.common.net.InetAddresses;
 import lombok.RequiredArgsConstructor;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
-
+import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
 import java.util.Map;
@@ -36,9 +35,8 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResultServiceImpl implements ResultService {
-
-    private static final Logger log = LoggerFactory.getLogger(ResultServiceImpl.class);
 
     private final TestRepository testRepository;
     private final GeoLocationService geoLocationService;
@@ -57,15 +55,22 @@ public class ResultServiceImpl implements ResultService {
     private final static Pattern MCC_MNC_PATTERN = Pattern.compile("\\d{3}-\\d+");
 
     @Override
+    @Transactional
     public void processResultRequest(HttpServletRequest httpServletRequest, ResultRequest resultRequest, Map<String, String> headers) {
         UUID requestUUID = UUID.fromString(resultRequest.getTestToken().split("_")[0]);
 
-        Test test = testRepository.findByUuidOrOpenTestUuid(requestUUID)
+        // Pessimistic lock: serialise concurrent submissions of the same test so they can't deadlock
+        // on the test-row lock upgrade (FK key-share -> for-update). A second concurrent request
+        // blocks here until the first commits, then fails the status check below.
+        Test test = testRepository.findAndLockByUuidOrOpenTestUuid(requestUUID)
                 .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.TEST_NOT_FOUND, requestUUID)));
 
-        //verify test status
+        //verify test status (handled by RtrAdvice as a clean 400 {"error":[message]} - no stack trace)
         if (test.getStatus() != TestStatus.STARTED) {
-            throw new RuntimeException(ErrorMessage.INVALID_TEST_STATUS);
+            throw new IllegalArgumentException(String.format(
+                    "%s (uuid=%s, openTestUuid=%s): expected status %s but was %s",
+                    ErrorMessage.INVALID_TEST_STATUS, test.getUuid(), test.getOpenTestUuid(),
+                    TestStatus.STARTED, test.getStatus()));
         }
 
         verifyTestStatus(resultRequest);
@@ -91,12 +96,12 @@ public class ResultServiceImpl implements ResultService {
     }
 
     private void processCertMode(ResultRequest resultRequest, Test test) {
-        if (Objects.nonNull(resultRequest.getUserCertMode()) &&
-            resultRequest.getUserCertMode() &&
+        if (Objects.nonNull(resultRequest.getCertMode()) &&
+            resultRequest.getCertMode() &&
             Objects.nonNull(test.getLoopModeSettings())) {
 
             log.info("UserCertMode is true for test result uuid: {}", test.getUuid());
-            test.getLoopModeSettings().setCertMode(resultRequest.getUserCertMode());
+            test.getLoopModeSettings().setCertMode(resultRequest.getCertMode());
             loopModeSettingsRepository.save(test.getLoopModeSettings());
 
             if("DESKTOP".equals(resultRequest.getType())) {
@@ -138,7 +143,8 @@ public class ResultServiceImpl implements ResultService {
         setMaxNetworkType(test);
         checkForDifferentType(test);
 
-        if (test.getNetworkType() < 0) {
+        // avoid null pointer exception
+        if (test.getNetworkType() == null || test.getNetworkType() < 0) {
             throw new IllegalArgumentException(ErrorMessage.ERROR_NETWORK_TYPE);
         }
     }
@@ -233,19 +239,25 @@ public class ResultServiceImpl implements ResultService {
     }
 
     private void setRMBTClientInfo(ResultRequest resultRequest, Test test) {
-        Optional.ofNullable(resultRequest.getTestIpLocal())
-                .ifPresent(ipLocalRaw -> {
-                    InetAddress ipLocalAddress = InetAddresses.forString(ipLocalRaw);
-                    test.setClientIpLocal(InetAddresses.toAddrString(ipLocalAddress));
-                    test.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
-                    test.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
+        if (resultRequest.getTestIpLocal() == null) {
+            Optional.ofNullable(test.getClientPublicIp())
+                    .map(InetAddresses::forString)
+                    .ifPresent(ipPublicAddress -> {
+                        // store ip version, eg. is_ipv4
+                        test.setNatType(HelperFunctions.getNatType(null, ipPublicAddress));
+                    });
+        } else {
+            InetAddress ipLocalAddress = InetAddresses.forString(resultRequest.getTestIpLocal());
+            test.setClientIpLocal(InetAddresses.toAddrString(ipLocalAddress));
+            test.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
+            test.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
 
-                    Optional.ofNullable(test.getClientPublicIp())
-                            .map(InetAddresses::forString)
-                            .ifPresent(ipPublicAddress -> {
-                                test.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
-                            });
-                });
+            Optional.ofNullable(test.getClientPublicIp())
+                    .map(InetAddresses::forString)
+                    .ifPresent(ipPublicAddress -> {
+                        test.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+                    });
+        }
 
         Optional.ofNullable(resultRequest.getTestIpServer())
                 .ifPresent(ipServer -> {

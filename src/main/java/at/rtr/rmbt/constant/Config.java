@@ -25,6 +25,7 @@ public interface Config {
     String TERM_AND_CONDITION_NDT_URL_KEY = "tc_ndt_url_android";
     String URL_OPEN_DATA_PREFIX_KEY = "url_open_data_prefix";
     String URL_SHARE_KEY = "url_share";
+    String CLASSIFICATION_THRESHOLDS_KEY = "classification_thresholds";
     String URL_STATISTIC_KEY = "url_statistics";
     String URL_CONTROL_IPV4_ONLY_KEY = "control_ipv4_only";
     String URL_CONTROL_IPV6_ONLY_KEY = "control_ipv6_only";
@@ -102,15 +103,15 @@ public interface Config {
     List<ServerType> SERVER_WS_TEST_SERVER_TYPES = List.of(ServerType.RMBTws, ServerType.RMBThttp);
     List<ServerType> SERVER_QOS_TEST_SERVER_TYPES = List.of(ServerType.QoS);
     List<ServerType> SERVER_UDP_TEST_SERVER_TYPES = List.of(ServerType.RMBTudp);
-    List<String> SIGNAL_RESULT_STATUSES = List.of(TestStatus.SIGNAL_STARTED.toString(), TestStatus.SIGNAL.toString());
-    List<String> COVERAGE_RESULT_STATUSES = List.of(TestStatus.COVERAGE_STARTED.toString(), TestStatus.COVERAGE.toString());
+    // List of valid states before signalMeasurementResult
+    List<TestStatus> SIGNAL_MEASUREMENT_RESULT_STATUSES = List.of(TestStatus.COVERAGE_STARTED, TestStatus.SIGNAL_STARTED);
     // List of states which contain a vailid result for /testresultdetail
-    List<String> TEST_RESULT_DETAIL_STATUSES = List.of(TestStatus.FINISHED.toString(),
-            TestStatus.STARTED.toString(),
-            TestStatus.ERROR.toString(),
-            TestStatus.ABORTED.toString(),
-            TestStatus.COVERAGE.toString(),
-            TestStatus.SIGNAL.toString());
-    List<String> TEST_RESULT_STATUSES = TEST_RESULT_DETAIL_STATUSES;
+    List<TestStatus> TEST_RESULT_DETAIL_STATUSES = List.of(TestStatus.FINISHED,
+            TestStatus.STARTED,
+            TestStatus.ERROR,
+            TestStatus.ABORTED,
+            TestStatus.COVERAGE,
+            TestStatus.SIGNAL);
+    List<TestStatus> TEST_RESULT_STATUSES = TEST_RESULT_DETAIL_STATUSES;
     Integer SIGNIFICANT_PLACES = 3;
 }

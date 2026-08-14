@@ -32,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -189,6 +190,7 @@ public class TestServiceImpl implements TestService {
     }
 
     @Override
+    @Transactional
     public ResultUpdateResponse updateTestResult(ResultUpdateRequest resultUpdateRequest) {
         Test test = testRepository.findByUuid(resultUpdateRequest.getTestUUID())
                 .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.TEST_NOT_FOUND, resultUpdateRequest.getTestUUID())));
@@ -239,18 +241,13 @@ public class TestServiceImpl implements TestService {
     }
 
     private String getUUIDField(String uuid) {
-        switch (uuid.charAt(0)) {
-            case 'P':
-                return "open_uuid";
-            case 'O':
-                return "open_test_uuid";
-            case 'T':
-                return "t.uuid";
-            case 'U':
-                return "c.uuid";
-            default:
-                throw new IllegalArgumentException(ErrorMessage.INVALID_UUID_TYPE);
-        }
+        return switch (uuid.charAt(0)) {
+            case 'P' -> "open_uuid";
+            case 'O' -> "open_test_uuid";
+            case 'T' -> "t.uuid";
+            case 'U' -> "c.uuid";
+            default -> throw new IllegalArgumentException(ErrorMessage.INVALID_UUID_TYPE);
+        };
     }
 
 
@@ -642,14 +639,11 @@ public class TestServiceImpl implements TestService {
         geoString.append(" (");
         if (Objects.nonNull(providerField)) {
             String provider = providerField.toUpperCase(Locale.US);
-            switch (provider) {
-                case "NETWORK":
-                    provider = getStringFromBundle("key_geo_source_network", locale);
-                    break;
-                case "GPS":
-                    provider = getStringFromBundle("key_geo_source_gps", locale);
-                    break;
-            }
+            provider = switch (provider) {
+                case "NETWORK" -> getStringFromBundle("key_geo_source_network", locale);
+                case "GPS" -> getStringFromBundle("key_geo_source_gps", locale);
+                default -> provider;
+            };
             geoString.append(provider);
             geoString.append(", ");
         }
@@ -659,12 +653,17 @@ public class TestServiceImpl implements TestService {
     }
 
     private void addOpenUUID(List<TestResultDetailContainerResponse> propertiesList, Test test, Locale locale) {
-        TestResultDetailContainerResponse timeResponse = TestResultDetailContainerResponse.builder()
-                .title(getStringFromBundleWithKeyPrefix("open_uuid", locale))
-                .value(String.format(Constants.TEST_RESULT_DETAIL_OPEN_UUID_TEMPLATE, test.getOpenUuid()))
-                .openUUID(String.format(Constants.TEST_RESULT_DETAIL_OPEN_UUID_TEMPLATE, test.getOpenUuid()))
-                .build();
-        propertiesList.add(timeResponse);
+        if (test.getOpenUuid() != null) {
+            final String openUuidFormated =
+                    String.format(Constants.TEST_RESULT_DETAIL_OPEN_UUID_TEMPLATE, test.getOpenUuid());
+
+            TestResultDetailContainerResponse timeResponse = TestResultDetailContainerResponse.builder()
+                    .title(getStringFromBundleWithKeyPrefix("open_uuid", locale))
+                    .value(openUuidFormated)
+                    .openUUID(openUuidFormated)
+                    .build();
+            propertiesList.add(timeResponse);
+        }
     }
 
     private void addOpenTestUUID(List<TestResultDetailContainerResponse> propertiesList, Test test, Locale locale) {

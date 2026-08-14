@@ -7,24 +7,22 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 
+@Service
 public interface SignalService {
 
     Page<SignalMeasurementResponse> getSignalsHistory(Pageable pageable);
-
-    SignalSettingsResponse processSignalRequest(SignalRegisterRequest signalRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers);
-
-    SignalResultResponse processSignalResult(SignalResultRequest signalResultRequest);
 
     SignalDetailsResponse getSignalStrength(UUID testUUID);
 
     void processSignalRequests(Collection<SignalRequest> signalRequests, Test test);
 
-    CoverageSettingsResponse processCoverageRequest(CoverageRegisterRequest coverageRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers);
+    SignalMeasurementSettingsResponse processSignalMeasurementRequest(SignalMeasurementRegisterRequest signalMeasurementRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers);
 
-    CoverageResultResponse processCoverageResult(CoverageResultRequest coverageResultRequest);
+    void processSignalMeasurementResult(SignalMeasurementResultRequest signalMeasurementResultRequest, HttpServletRequest httpServletRequest, Map<String, String> headers);
 }

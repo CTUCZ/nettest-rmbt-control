@@ -2,6 +2,7 @@ package at.rtr.rmbt.constant;
 
 public interface URIConstants {
     String NEWS_URL = "/news";
+    String TEST_SERVER_STATUS = "/testServerStatus";
     String REGISTRATION_URL = "/testRequest";
     String RESULT_URL = "/result";
     String RESULT_QOS_URL = "/resultQoS";
@@ -10,8 +11,6 @@ public interface URIConstants {
     String ADMIN_NEWS_ITEM = ADMIN_NEWS + "/{newsId}";
     String ADMIN_SETTING = "/admin/settings";
     String ADMIN_SET_IMPLAUSIBLE = "/admin/setImplausible";
-    String SIGNAL_REQUEST = "/signalRequest";
-    String SIGNAL_RESULT = "/signalResult";
     String COVERAGE_REQUEST = "/coverageRequest";
     String COVERAGE_RESULT = "/coverageResult";
     String ADMIN_SIGNAL = "/reports/signal";
@@ -23,7 +22,7 @@ public interface URIConstants {
     String BY_TEST_UUID = "/{testUUID}";
     String MEASUREMENT_QOS_REQUEST = "/qosTestRequest";
     String MEASUREMENT_QOS_RESULT = "/qosTestResult";
-    String TEST_RESULT_DETAIL = "/testresultdetail";
+    String TEST_RESULT_DETAIL = "/testresultdetail";  // DEPRECATED
     String TEST_RESULT = "/testresult";
     String REQUEST_DATA_COLLECTOR = "/requestDataCollector";
     String IP = "/ip";

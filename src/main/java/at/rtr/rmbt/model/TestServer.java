@@ -18,6 +18,7 @@ import java.util.UUID;
 @Builder
 @Table(name = "test_server")
 @EqualsAndHashCode
+@ToString
 public class TestServer {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "test_server_seq")
@@ -27,9 +28,6 @@ public class TestServer {
 
     @Column(name = "name")
     private String name;
-
-    @Column(name = "web_address")
-    private String webAddress;
 
     @Column(name = "port")
     private Integer port;

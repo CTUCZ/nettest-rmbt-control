@@ -57,9 +57,9 @@ public class TestSettingsRequest {
     @JsonProperty("ndt")
     private Boolean ndt;
 
-    @Schema(description = "End status of the previous executed test")
+    @Schema(description = "End status of the previous executed test (raw client value; parsed leniently - an unknown value is ignored and logged)")
     @JsonProperty("previousTestStatus")
-    private TestStatus previousTestStatus;
+    private String previousTestStatus;
 
     @Schema(description = "Number of tests, which client performed, -1 if nothing, without actual starting test")
     @JsonProperty("testCounter")
@@ -73,7 +73,7 @@ public class TestSettingsRequest {
     @JsonProperty("softwareVersion")
     private String softwareVersion;
 
-    @Schema(description = "Whether user have an option to select measurement server by himself")
+    @Schema(description = "Whether client selected measurement server")
     @JsonProperty("user_server_selection")
     private boolean userServerSelection;
 
@@ -81,7 +81,7 @@ public class TestSettingsRequest {
     @JsonProperty("prefer_server")
     private String preferredServer;
 
-    @Schema(description = "Define number of threads used by client. Send -1 or leave empty to use defaults value")
+    @Schema(description = "Define number of threads used by client. Leave empty to use defaults value")
     @JsonProperty("num_threads")
     private Integer numberOfThreads;
 
@@ -93,7 +93,7 @@ public class TestSettingsRequest {
     @JsonProperty("location")
     private Location location;
 
-    @Schema(description = "Client time in Unix Epoch (UTC) e.g. Fri Apr 28 2023 08:18:53 GMT+0000", example = "1682669933367")
+    @Schema(description = "Client time in ms n Unix Epoch (UTC) e.g. Fri Apr 28 2023 08:18:53 GMT+0000", example = "1682669933367")
     @JsonProperty("time")
     private Long time;
 
@@ -121,6 +121,7 @@ public class TestSettingsRequest {
     @JsonProperty("language")
     private String language;
 
+    // not used
     @Schema(description = "Set to true if loop mode is on")
     @JsonProperty("user_loop_mode")
     private boolean userLoopMode;
@@ -141,6 +142,24 @@ public class TestSettingsRequest {
     @Schema(description = "Referrer of embedding website in case of iframe measurement")
     private String referrer;
 
+    @Schema(description = "Google Play Integrity token (standard request), opaque encrypted value, up to several KB")
+    @JsonProperty("integrity_token")
+    private String integrityToken;
+
+    @Schema(description = "Client-side UNIX timestamp in ms taken when the integrity token was requested; " +
+            "raw decimal text, input of the request hash (never validated against server time)", example = "1719912345678")
+    @JsonProperty("integrity_timestamp")
+    private String integrityTimestamp;
+
+    @Schema(description = "Reason the integrity token could not be obtained " +
+            "(NOT_AVAILABLE, PREPARE_FAILED, REQUEST_FAILED, TIMEOUT); parsed leniently", example = "TIMEOUT")
+    @JsonProperty("integrity_error")
+    private String integrityError;
+
+    @Schema(description = "Optional diagnostic detail for integrity_error, max 200 chars")
+    @JsonProperty("integrity_error_detail")
+    private String integrityErrorDetail;
+
     public enum ProtocolVersion {
         @JsonProperty("ipv4")
         IPV4("ipv4"),
@@ -148,7 +167,7 @@ public class TestSettingsRequest {
         @JsonProperty("ipv6")
         IPV6("ipv6");
 
-        private String label;
+        final private String label;
 
         ProtocolVersion(String label) {
             this.label = label;
@@ -242,7 +261,7 @@ public class TestSettingsRequest {
         @JsonProperty("max_movement")
         private Integer maxMovement;
 
-        @Schema(description = "How many tets should be executed")
+        @Schema(description = "How many tests should be executed")
         @JsonProperty("max_tests")
         private Integer maxTests;
 
@@ -258,6 +277,11 @@ public class TestSettingsRequest {
         @Schema(description = "Loop UUID of the test series with first test will be generated, so first test will be null there in request and new will be generated", example = "37e57f4e-25df-4bcf-9151-9f6eff311279")
         @JsonProperty("loop_uuid")
         private String loopUuid;
+
+        @Schema(description = "Flag indicating that the measurement is a certified measurement ", example = "True")
+        @JsonAlias("user_cert_mode")
+        @JsonProperty("cert_mode")
+        private Boolean certMode;
     }
 
     @Getter

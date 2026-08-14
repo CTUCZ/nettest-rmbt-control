@@ -2,11 +2,11 @@ package at.rtr.rmbt.mapper.impl;
 
 import at.rtr.rmbt.mapper.TestMapper;
 import at.rtr.rmbt.model.Test;
-import at.rtr.rmbt.request.CoverageResultRequest;
+import at.rtr.rmbt.request.SignalMeasurementResultRequest;
 import at.rtr.rmbt.request.ResultRequest;
-import at.rtr.rmbt.request.SignalResultRequest;
 import at.rtr.rmbt.response.TestResponse;
 import at.rtr.rmbt.utils.GeometryUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.locationtech.jts.geom.Geometry;
 import org.springframework.stereotype.Service;
 
@@ -24,33 +24,8 @@ public class TestMapperImpl implements TestMapper {
     }
 
     @Override
-    public void updateTestWithSignalResultRequest(SignalResultRequest signalResultRequest, Test test) {
-        test.setClientVersion(signalResultRequest.getClientVersion());
-        test.setClientLanguage(signalResultRequest.getClientLanguage());
-        test.setPlatform(signalResultRequest.getPlatform());
-        test.setOsVersion(signalResultRequest.getOsVersion());
-        test.setApiLevel(signalResultRequest.getApiLevel());
-        test.setDevice(signalResultRequest.getDevice());
-        test.setModel(signalResultRequest.getModel());
-        test.setProduct(signalResultRequest.getProduct());
-        test.setPhoneType(signalResultRequest.getTelephonyPhoneType());
-        test.setDataState(signalResultRequest.getTelephonyDataState());
-        test.setNetworkCountry(signalResultRequest.getTelephonyNetworkCountry());
-        test.setNetworkOperatorName(signalResultRequest.getTelephonyNetworkOperatorName());
-        test.setNetworkSimCountry(signalResultRequest.getTelephonyNetworkSimCountry());
-        test.setNetworkSimOperatorName(signalResultRequest.getTelephonyNetworkSimOperatorName());
-        test.setWifiSsid(signalResultRequest.getWifiSSID());
-        test.setWifiBssid(signalResultRequest.getWifiBSSID());
-        test.setWifiNetworkId(signalResultRequest.getWifiNetworkId());
-        test.setClientSoftwareVersion(signalResultRequest.getClientSoftwareVersion());
-        test.setNetworkType(signalResultRequest.getNetworkType());
-        test.setNetworkIsRoaming(signalResultRequest.getTelephonyNetworkIsRoaming());
-        test.setTestErrorCause(signalResultRequest.getTestErrorCause());
-    }
-
-    @Override
     public void updateTestWithResultRequest(ResultRequest resultRequest, Test test) {
-        test.setClientVersion(resultRequest.getClientVersion());
+        test.setClientVersion(StringUtils.left(resultRequest.getClientVersion(), 10));
         test.setClientName(resultRequest.getClientName());
         test.setClientLanguage(resultRequest.getClientLanguage());
         test.setUploadSpeed(resultRequest.getUploadSpeed());
@@ -99,6 +74,8 @@ public class TestMapperImpl implements TestMapper {
         test.setLastQosStatus(resultRequest.getLastQosStatus());
         test.setTestErrorCause(resultRequest.getTestErrorCause());
         test.setSubmissionRetryCount(resultRequest.getTestSubmissionRetryCount());
+        test.setCertMode(resultRequest.getCertMode());
+        test.setApn(resultRequest.getTelephonyAPN());
     }
 
     @Override
@@ -115,28 +92,44 @@ public class TestMapperImpl implements TestMapper {
     }
 
     @Override
-    public void updateTestWithCoverageResultRequest(CoverageResultRequest coverageResultRequest, Test test) {
-        test.setClientVersion(coverageResultRequest.getClientVersion());
-        test.setClientLanguage(coverageResultRequest.getClientLanguage());
-        test.setPlatform(coverageResultRequest.getPlatform());
-        test.setOsVersion(coverageResultRequest.getOsVersion());
-        test.setApiLevel(coverageResultRequest.getApiLevel());
-        test.setDevice(coverageResultRequest.getDevice());
-        test.setModel(coverageResultRequest.getModel());
-        test.setProduct(coverageResultRequest.getProduct());
-        test.setPhoneType(coverageResultRequest.getTelephonyPhoneType());
-        test.setDataState(coverageResultRequest.getTelephonyDataState());
-        test.setNetworkCountry(coverageResultRequest.getTelephonyNetworkCountry());
-        test.setNetworkOperatorName(coverageResultRequest.getTelephonyNetworkOperatorName());
-        test.setNetworkSimCountry(coverageResultRequest.getTelephonyNetworkSimCountry());
-        test.setNetworkSimOperatorName(coverageResultRequest.getTelephonyNetworkSimOperatorName());
-        test.setWifiSsid(coverageResultRequest.getWifiSSID());
-        test.setWifiBssid(coverageResultRequest.getWifiBSSID());
-        test.setWifiNetworkId(coverageResultRequest.getWifiNetworkId());
-        test.setClientSoftwareVersion(coverageResultRequest.getClientSoftwareVersion());
-        test.setNetworkType(coverageResultRequest.getNetworkType());
-        test.setNetworkIsRoaming(coverageResultRequest.getTelephonyNetworkIsRoaming());
-        test.setTestErrorCause(coverageResultRequest.getTestErrorCause());
+    public void updateTestWithSignalMeasurementResultRequest(SignalMeasurementResultRequest signalMeasurementResultRequest, Test test) {
+        test.setClientVersion(StringUtils.left(signalMeasurementResultRequest.getClientVersion(), 10));
+        test.setClientLanguage(signalMeasurementResultRequest.getClientLanguage());
+        test.setPlatform(signalMeasurementResultRequest.getPlatform());
+        test.setOsVersion(signalMeasurementResultRequest.getOsVersion());
+        test.setApiLevel(signalMeasurementResultRequest.getApiLevel());
+        test.setDevice(signalMeasurementResultRequest.getDevice());
+        test.setModel(signalMeasurementResultRequest.getModel());
+        test.setProduct(signalMeasurementResultRequest.getProduct());
+        test.setPhoneType(signalMeasurementResultRequest.getTelephonyPhoneType());
+        test.setDataState(signalMeasurementResultRequest.getTelephonyDataState());
+        test.setNetworkCountry(signalMeasurementResultRequest.getTelephonyNetworkCountry());
+        test.setNetworkOperatorName(signalMeasurementResultRequest.getTelephonyNetworkOperatorName());
+        test.setNetworkSimCountry(signalMeasurementResultRequest.getTelephonyNetworkSimCountry());
+        test.setNetworkSimOperatorName(signalMeasurementResultRequest.getTelephonyNetworkSimOperatorName());
+        test.setWifiSsid(signalMeasurementResultRequest.getWifiSSID());
+        test.setWifiBssid(signalMeasurementResultRequest.getWifiBSSID());
+        test.setWifiNetworkId(signalMeasurementResultRequest.getWifiNetworkId());
+        test.setClientSoftwareVersion(signalMeasurementResultRequest.getClientSoftwareVersion());
+        test.setNetworkType(signalMeasurementResultRequest.getNetworkType());
+        test.setNetworkIsRoaming(signalMeasurementResultRequest.getTelephonyNetworkIsRoaming());
+        test.setTestErrorCause(signalMeasurementResultRequest.getTestErrorCause());
+        // Optional termination cause; null/empty stays as-is, longer values are quietly
+        // truncated to the column's 100 char limit.
+        test.setTerminationCause(StringUtils.left(signalMeasurementResultRequest.getTerminationCause(), 100));
+        test.setNetworkOperator(signalMeasurementResultRequest.getTelephonyNetworkOperator());
+        test.setNetworkSimOperator(signalMeasurementResultRequest.getTelephonyNetworkSimOperator());
+        test.setClientIpLocal(signalMeasurementResultRequest.getTestIpLocal());
+        test.setTemperature(signalMeasurementResultRequest.getTemperature());
+        test.setTimezone(signalMeasurementResultRequest.getTimezone());
+        test.setApn(signalMeasurementResultRequest.getTelephonyAPN());
+        test.setSubmissionRetryCount(
+                signalMeasurementResultRequest.getSubmissionRetryCount() == null
+                        ? null
+                        : Math.toIntExact(signalMeasurementResultRequest.getSubmissionRetryCount())
+        );
+
+
 
 }
 }

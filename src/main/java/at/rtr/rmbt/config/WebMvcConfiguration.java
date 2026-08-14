@@ -2,8 +2,11 @@ package at.rtr.rmbt.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -42,6 +45,20 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         return new RestTemplate();
     }
 
+    /**
+     * Registers the {@link MonitoringAuthFilter} in front of the JavaMelody report. Ordered ahead of
+     * everything else so it gates {@code /monitoring} before JavaMelody's own filter serves it.
+     */
+    @Bean
+    public FilterRegistrationBean<MonitoringAuthFilter> monitoringAuthFilter(Environment environment) {
+        final FilterRegistrationBean<MonitoringAuthFilter> registration =
+                new FilterRegistrationBean<>(new MonitoringAuthFilter(environment));
+        registration.setName("monitoringAuthFilter");
+        registration.addUrlPatterns("/monitoring", "/monitoring/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
+    }
+
 
     private static final String[] clients = new String[]{"client:specure", "client:rtr"};
 
@@ -56,12 +73,22 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         httpSecurity.csrf(csrf -> csrf.disable());
         httpSecurity.authorizeHttpRequests((authorize -> {
             authorize.requestMatchers(IP, REQUEST_DATA_COLLECTOR, TEST_RESULT_DETAIL, MEASUREMENT_QOS_REQUEST,
-                            SIGNAL_REQUEST, SIGNAL_RESULT, COVERAGE_REQUEST, COVERAGE_RESULT,
+                            COVERAGE_REQUEST, COVERAGE_RESULT,
                             NEWS_URL, REGISTRATION_URL, RESULT_QOS_URL, RESULT_URL, SETTINGS_URL,
                             PROVIDERS, TEST_RESULT, HISTORY, SYNC, MEASUREMENT_QOS_RESULT, VERSION, RESULT_UPDATE,
-                            QOS_BY_OPEN_TEST_UUID, QOS_BY_OPEN_TEST_UUID_AND_LANGUAGE, ADMIN_SET_IMPLAUSIBLE,
-                            "/swagger-ui/**", "/v3/api-docs/**")
+                            QOS_BY_OPEN_TEST_UUID, QOS_BY_OPEN_TEST_UUID_AND_LANGUAGE, TEST_SERVER_STATUS,
+                            // Swagger UI + OpenAPI spec. Both the springdoc default (/v3/api-docs)
+                            // and the deployment's overridden path (/api-docs, incl. .yaml/.json) are
+                            // whitelisted, so the spec is not blocked by anyRequest().authenticated().
+                            "/swagger-ui/**", "/swagger-ui.html",
+                            "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                            "/api-docs", "/api-docs/**", "/api-docs.yaml", "/api-docs.json",
+                            // JavaMelody report: reachable, but guarded by MonitoringAuthFilter (MELODY_PW)
+                            "/monitoring", "/monitoring/**")
                     .permitAll();
+            // Admin moderation action: must NOT be public. Gated like the other admin routes.
+            authorize.requestMatchers(ADMIN_SET_IMPLAUSIBLE).hasAuthority("write:implausible");
+            authorize.requestMatchers(ADMIN_SET_IMPLAUSIBLE).hasAnyAuthority(clients);
             authorize.requestMatchers(ADMIN_SIGNAL).hasAuthority("read:reports/signal");
             authorize.requestMatchers(ADMIN_SIGNAL).hasAnyAuthority(clients);
             authorize.requestMatchers(ADMIN_NEWS).hasAuthority("read:config/news");
@@ -79,13 +106,25 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
 
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
-        return (web) -> web.ignoring().requestMatchers("/v3/api-docs", "/swagger-ui/**", "/v2/api-docs", "/configuration/ui", "/swagger-resources/**", "/configuration/security", "/swagger-ui.html", "/webjars/**", "/health").and()
-                .ignoring().requestMatchers(HttpMethod.OPTIONS, "/**");
+        return (web) -> web.ignoring()
+                // OpenAPI spec + Swagger UI. Both the springdoc default (/v3/api-docs) and the
+                // path this app serves the spec at (/api-docs, incl. .yaml/.json and the
+                // swagger-config sub-path) bypass the security chain, so the spec is never 403'd.
+                .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                        "/api-docs", "/api-docs/**", "/api-docs.yaml", "/api-docs.json",
+                        "/swagger-ui/**", "/v2/api-docs", "/configuration/ui",
+                        "/swagger-resources/**", "/configuration/security", "/swagger-ui.html", "/webjars/**", "/health")
+                .requestMatchers(HttpMethod.OPTIONS, "/**");
     }
 
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        Arrays.stream(origin).forEach((s) -> {
+            log.info("adding CORS mapping for {}", s);
+        });
+
+
         Arrays.asList(SETTINGS_URL, HISTORY, ADMIN_SET_IMPLAUSIBLE, NEWS_URL, MEASUREMENT_QOS_REQUEST, MEASUREMENT_QOS_REQUEST,
                         REGISTRATION_URL, RESULT_URL, RESULT_UPDATE, SYNC, TEST_RESULT_DETAIL, TEST_RESULT)
                 .forEach(url -> {
@@ -95,7 +134,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
 
                 });
 
-        Arrays.asList(IP, QOS_RESULT, QOS_RESULT + "/**", VERSION, REQUEST_DATA_COLLECTOR)
+        Arrays.asList(IP, QOS_RESULT, QOS_RESULT + "/**", VERSION, REQUEST_DATA_COLLECTOR, TEST_SERVER_STATUS)
                 .forEach(url -> registry.addMapping(url));
     }
 

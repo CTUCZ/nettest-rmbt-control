@@ -1,9 +1,12 @@
 package at.rtr.rmbt.repository;
 
 import at.rtr.rmbt.dto.LteFrequencyDto;
+import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.model.Test;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.query.Procedure;
 import org.springframework.data.repository.PagingAndSortingRepository;
@@ -43,47 +46,45 @@ public interface TestRepository extends PagingAndSortingRepository<Test, Long>, 
 
     Page<Test> findAllByRadioCellIsNotEmptyAndNetworkTypeNotIn(Pageable pageable, List<Integer> networkTypes);
 
-    @Query(value = "SELECT * FROM test WHERE uuid = :testUUID AND (status is null or status in (:testStatuses))", nativeQuery = true)
-    Optional<Test> findByUuidAndStatusesIn(UUID testUUID, Collection<String> testStatuses);
+    // JPQL (not native): lets Hibernate alias columns and join-fetch the eager TestLocation
+    // association by position. A native "SELECT * FROM test" forces Hibernate to read the
+    // associated test_location columns by name from the test result set, which fails.
+    @Query("SELECT t FROM Test t WHERE t.uuid = :testUUID AND (t.status IS NULL OR t.status IN :testStatuses)")
+    Optional<Test> findByUuidAndStatusesIn(UUID testUUID, Collection<TestStatus> testStatuses);
 
-    @Query(value = "SELECT * FROM test WHERE uuid = :testUUID AND (status is null or status in (:testStatuses)) for update", nativeQuery = true)
-    Optional<Test> findByUuidAndStatusesInLocked(UUID testUUID, Collection<String> testStatuses);
+    // JPQL + @Lock instead of native "... for update": same reason as above (avoid the
+    // by-name inline read of eager TestLocation/TestNdt columns from the test result set).
+    // Hibernate emits "for update of <root>" so the lock applies only to the test row.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM Test t WHERE t.uuid = :testUUID AND (t.status IS NULL OR t.status IN :testStatuses)")
+    Optional<Test> findByUuidAndStatusesInLocked(UUID testUUID, Collection<TestStatus> testStatuses);
 
-    @Query(value = "SELECT * FROM test WHERE deleted = false AND implausible = false AND uuid = :testUUID AND (status is null or status in (:testStatuses))", nativeQuery = true)
-    Optional<Test> findByUuidAndStatusesInAndActive(UUID testUUID, Collection<String> testStatuses);
+    @Query("SELECT t FROM Test t WHERE t.deleted = false AND t.implausible = false AND t.uuid = :testUUID AND (t.status IS NULL OR t.status IN :testStatuses)")
+    Optional<Test> findByUuidAndStatusesInAndActive(UUID testUUID, Collection<TestStatus> testStatuses);
 
-    @Query(
-            value = "SELECT * " +
-                    "FROM test t " +
-                    "INNER JOIN (SELECT server_id, MAX(time) AS MaxDateTime\n" +
-                    "    FROM test " +
-                    "    WHERE server_id in (:serverIds) " +
-                    "    GROUP BY server_id " +
-                    "    ) groupedTest " +
-                    "ON t.server_id = groupedTest.server_id " +
-                    "AND t.time = groupedTest.MaxDateTime",
-            nativeQuery = true
-    )
+    // JPQL (was native "SELECT * FROM test"): returns, per server, the test(s) with the latest time.
+    @Query("SELECT t FROM Test t WHERE t.testServer.uid IN :serverIds " +
+            "AND t.time = (SELECT MAX(t2.time) FROM Test t2 WHERE t2.testServer = t.testServer)")
     List<Test> findLastTestByServerIdIn(Collection<Long> serverIds);
 
-    @Query(
-            value = "SELECT * " +
-                    "FROM test t " +
-                    "INNER JOIN (SELECT server_id, MAX(time) AS MaxDateTime\n" +
-                    "    FROM test " +
-                    "    WHERE server_id in (:serverIds) and status in (:testStatuses)" +
-                    "    GROUP BY server_id " +
-                    "    ) groupedTest " +
-                    "ON t.server_id = groupedTest.server_id " +
-                    "AND t.time = groupedTest.MaxDateTime",
-            nativeQuery = true
-    )
-    List<Test> findLastSuccessTestByServerIdInAndStatusIn(Collection<Long> serverIds, Collection<String> testStatuses);
+    @Query("SELECT t FROM Test t WHERE t.testServer.uid IN :serverIds AND t.status IN :testStatuses " +
+            "AND t.time = (SELECT MAX(t2.time) FROM Test t2 " +
+            "              WHERE t2.testServer = t.testServer AND t2.status IN :testStatuses)")
+    List<Test> findLastSuccessTestByServerIdInAndStatusIn(Collection<Long> serverIds, Collection<TestStatus> testStatuses);
 
     Optional<Test> findByUuid(UUID testUUID);
 
     @Query("select t from Test t where t.uuid = :uuid or t.openTestUuid = :uuid")
     Optional<Test> findByUuidOrOpenTestUuid(UUID uuid);
+
+    // Pessimistic-write variant for the result-submission path: it serialises concurrent
+    // submissions of the SAME test (client retries / double-submits). Without it, two transactions
+    // each take a FK KEY-SHARE lock on the test row (inserting child rows) and then both try to
+    // upgrade to FOR UPDATE on the final test save, which deadlocks. Locking the row up front makes
+    // the second request block until the first commits, then fail the status check cleanly.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Test t where t.uuid = :uuid or t.openTestUuid = :uuid")
+    Optional<Test> findAndLockByUuidOrOpenTestUuid(UUID uuid);
 
     Optional<Test> findByOpenTestUuidAndImplausibleIsFalseAndDeletedIsFalse(UUID uuid);
 

@@ -1,19 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE configuration>
+<!-- Safe baseline: console at INFO. This config never fails to load.
+     Remote (Logstash) logging is applied at runtime by at.rtr.rmbt.config.LoggingConfigurer,
+     which reads the deployment context (Tomcat conf/context.xml <Parameter> entries, or JVM
+     system properties / environment variables):
+       - LOGGING_CONFIG_FILE set to an existing file -> that logback config is loaded verbatim
+       - LOG_HOST set                                -> Logstash (INFO) + console (ERROR only)
+       - neither                                     -> this console config stays in effect -->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-<configuration scan="true">
-    <include resource="org/springframework/boot/logging/logback/defaults.xml" />
-
-
-    <appender name="logstash" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
-        <param name="Encoding" value="UTF-8"/>
-        <remoteHost>${LOG_HOST}</remoteHost>
-        <port>${LOG_PORT}</port>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"app_name":"control-service"}</customFields>
-        </encoder>
-    </appender>
     <root level="INFO">
-        <appender-ref ref="logstash"/>
+        <appender-ref ref="CONSOLE"/>
     </root>
 </configuration>

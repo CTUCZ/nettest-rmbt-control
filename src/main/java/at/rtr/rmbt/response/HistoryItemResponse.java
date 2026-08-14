@@ -107,6 +107,7 @@ public class HistoryItemResponse {
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private final Long fences_count;
 
+    @Schema(description = "Identification of certified measurement")
     @JsonProperty(value = "cert_mode")
     @Builder.Default
     private final Boolean certMode = false;

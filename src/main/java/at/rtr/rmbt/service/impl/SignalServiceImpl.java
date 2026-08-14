@@ -9,6 +9,7 @@ import at.rtr.rmbt.enums.TestPlatform;
 import at.rtr.rmbt.enums.TestStatus;
 import at.rtr.rmbt.exception.ClientNotFoundException;
 import at.rtr.rmbt.exception.InvalidSequenceException;
+import at.rtr.rmbt.exception.TestNotFoundException;
 import at.rtr.rmbt.mapper.SignalMapper;
 import at.rtr.rmbt.mapper.TestMapper;
 import at.rtr.rmbt.model.*;
@@ -35,18 +36,14 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static at.rtr.rmbt.constant.Constants.NETWORK_TYPE_WLAN;
-import static at.rtr.rmbt.constant.HeaderConstants.URL;
-import static at.rtr.rmbt.constant.URIConstants.SIGNAL_RESULT;
 
 @Slf4j
 @Service
@@ -67,6 +64,14 @@ public class SignalServiceImpl implements SignalService {
     private final SignalRepository signalRepository;
     private final FencesService fencesService;
     private final TestServerService testServerService;
+    private final SettingsRepository settingsRepository;
+    private final LoopModeSettingsService loopModeSettingsService;
+    private final CellLocationService cellLocationService;
+
+    /** Fallback duration (ms) for a signal measurement / session when no DB setting is present. */
+    private static final long DEFAULT_MAX_SIGNAL_MEASUREMENT_MS = 14400000L; // 4 hours
+    /** Fallback UDP port for the signal measurement test server when the server has none configured. */
+    private static final String DEFAULT_UDP_PORT = "444";
 
 
     @Override
@@ -76,127 +81,103 @@ public class SignalServiceImpl implements SignalService {
     }
 
     @Override
-    public SignalSettingsResponse processSignalRequest(SignalRegisterRequest signalRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
+    @Transactional
+    public SignalMeasurementSettingsResponse processSignalMeasurementRequest(SignalMeasurementRegisterRequest signalMeasurementRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
         var ip = HeaderExtrudeUtil.getIpFromNgNixHeader(httpServletRequest, headers);
 
         var uuid = uuidGenerator.generateUUID();
         var openTestUUID = uuidGenerator.generateUUID();
 
-        var client = clientRepository.findByUuid(signalRegisterRequest.getUuid())
-                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, signalRegisterRequest.getUuid())));
+        // Check if client exists
+        var client = findClientOrThrow(signalMeasurementRegisterRequest.getClientUuid());
 
         var clientAddress = InetAddresses.forString(ip);
         var clientIpString = InetAddresses.toAddrString(clientAddress);
 
         var asInformation = HelperFunctions.getASInformationForSignalRequest(clientAddress);
 
-        var test = Test.builder()
-                .uuid(uuid)
-                .openTestUuid(openTestUUID)
-                .client(client)
-                .clientPublicIp(clientIpString)
-                .clientPublicIpAnonymized(HelperFunctions.anonymizeIp(clientAddress))
-                .timezone(signalRegisterRequest.getTimezone())
-                .clientTime(getClientTimeFromSignalRequest(signalRegisterRequest))
-                .time(getClientTimeFromSignalRequest(signalRegisterRequest))
-                .publicIpAsn(asInformation.getNumber())
-                .publicIpAsName(asInformation.getName())
-                .countryAsn(asInformation.getCountry())
-                .publicIpRdns(HelperFunctions.getReverseDNS(clientAddress))
-                .status(TestStatus.SIGNAL_STARTED)
-                .lastSequenceNumber(-1)
-                .useSsl(false)//TODO hardcode because of database constraint
-                .measurementType(signalRegisterRequest.getMeasurementType())
-                .build();
 
-        var savedTest = testRepository.saveAndFlush(test);
+        // check if client submitted a loopUuid
+        var loopUuid = signalMeasurementRegisterRequest.getLoopUuid();
+        int loopTestCounter;
 
-        return SignalSettingsResponse.builder()
-                .provider(providerRepository.getProviderNameByTestId(savedTest.getUid()))
-                .clientRemoteIp(ip)
-                .resultUrl(getSignalResultUrl(httpServletRequest))
-                .testUUID(savedTest.getUuid())
-                .build();
-    }
-
-    @Override
-    public CoverageSettingsResponse processCoverageRequest(CoverageRegisterRequest coverageRegisterRequest, HttpServletRequest httpServletRequest, Map<String, String> headers) {
-        var ip = HeaderExtrudeUtil.getIpFromNgNixHeader(httpServletRequest, headers);
-
-        var uuid = uuidGenerator.generateUUID();
-        var openTestUUID = uuidGenerator.generateUUID();
-
-        var client = clientRepository.findByUuid(coverageRegisterRequest.getClientUuid())
-                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageRegisterRequest.getClientUuid())));
-
-        var clientAddress = InetAddresses.forString(ip);
-        var clientIpString = InetAddresses.toAddrString(clientAddress);
-
-        var asInformation = HelperFunctions.getASInformationForSignalRequest(clientAddress);
-
-        TestStatus regStatus = TestStatus.COVERAGE_STARTED;
-        Boolean supportSignal = coverageRegisterRequest.getSignal();
-        if (Boolean.TRUE.equals(supportSignal)) {
-            regStatus = TestStatus.SIGNAL_STARTED;
+        if (loopUuid == null) {
+            loopUuid = uuidGenerator.generateUUID();
+            loopTestCounter = 1;
+        }
+        else {
+            // check if loop uuid exists and if it belongs to the client
+            if (!loopModeSettingsService.existsByLoopUuidAndClientUuid(loopUuid, client.getUuid())) {
+                throw new TestNotFoundException(
+                        String.format(ErrorMessage.TEST_WITH_LOOP_UUID_NOT_FOUND, loopUuid)
+                );
+            }
+            // get latest counter
+            loopTestCounter = loopModeSettingsService.findMaxTestCounterByLoopUuid(loopUuid).orElse(0);
+            // increase counter by one
+            loopTestCounter = loopTestCounter + 1;
         }
 
+        // create new loop record
+        LoopModeSettings loopModeSettings = toLoopModeSettings(loopUuid, uuid, client.getUuid(), loopTestCounter);
+
+
+        TestStatus regStatus = Boolean.TRUE.equals(signalMeasurementRegisterRequest.getSignal())
+                ? TestStatus.SIGNAL_STARTED
+                : TestStatus.COVERAGE_STARTED;
+
+        // get geoIP country, used for selecting the UDP server
+        String countryIp = GeoIpHelper.lookupCountry(clientAddress);
+        var clientTime = getClientTimeFromSignalRequest(signalMeasurementRegisterRequest);
+
         var test = Test.builder()
                 .uuid(uuid)
                 .openTestUuid(openTestUUID)
                 .client(client)
                 .clientPublicIp(clientIpString)
                 .clientPublicIpAnonymized(HelperFunctions.anonymizeIp(clientAddress))
-                .timezone(coverageRegisterRequest.getTimezone())
-                .clientTime(getClientTimeFromSignalRequest(coverageRegisterRequest))
-                .time(getClientTimeFromSignalRequest(coverageRegisterRequest))
+                .timezone(signalMeasurementRegisterRequest.getTimezone())
+                .clientTime(clientTime)
+                .time(clientTime)
                 .publicIpAsn(asInformation.getNumber())
                 .publicIpAsName(asInformation.getName())
                 .countryAsn(asInformation.getCountry())
-                .publicIpRdns(HelperFunctions.getReverseDNS(clientAddress))
+                .countryGeoip(countryIp)
+                .publicIpRdns(HelperFunctions.reverseDNSLookup(clientAddress))
                 .status(regStatus)
                 .lastSequenceNumber(-1)
                 .useSsl(false) // hardcode because of database constraint
-                .measurementType(coverageRegisterRequest.getMeasurementType())
-                .clientLanguage(coverageRegisterRequest.getClientLanguage())
-                .softwareRevision(coverageRegisterRequest.getSoftwareRevision())
-                .model(coverageRegisterRequest.getModel())
-                .osVersion(coverageRegisterRequest.getOsVersion())
-                .clientName(ServerType.valueOf(coverageRegisterRequest.getClient_name()))
-                .clientSoftwareVersion(coverageRegisterRequest.getClientSoftwareVersion())
-                .device(coverageRegisterRequest.getDevice())
-                .platform(TestPlatform.valueOf(coverageRegisterRequest.getPlatform().toUpperCase()))
+                .measurementType(signalMeasurementRegisterRequest.getMeasurementType())
+                .clientLanguage(signalMeasurementRegisterRequest.getClientLanguage())
+                .softwareRevision(signalMeasurementRegisterRequest.getSoftwareRevision())
+                .model(signalMeasurementRegisterRequest.getModel())
+                .osVersion(signalMeasurementRegisterRequest.getOsVersion())
+                .clientName(ServerType.valueOf(signalMeasurementRegisterRequest.getClient_name()))
+                .clientSoftwareVersion(signalMeasurementRegisterRequest.getClientSoftwareVersion())
+                .device(signalMeasurementRegisterRequest.getDevice())
+                .platform(TestPlatform.valueOf(signalMeasurementRegisterRequest.getPlatform().toUpperCase()))
                 .build();
                 // version (0.3), softwareVersionCode (11), type (MOBILE), name (RMBT), client (RMBT)
 
         var savedTest = testRepository.saveAndFlush(test);
+        loopModeSettingsService.save(loopModeSettings);
 
-        // TODO: for debugging a dummy secret is hardcoded
-        // Later a specific test server needs to be defined (host, port)
-        final String sharedSecret = "topsecret";
+        // Max duration (ms) for a single signal measurement and for the whole session, with fallback.
+        long maxSignalMeasurementSeconds = getLongSettingOrDefault("max_coverage_measurement_seconds", DEFAULT_MAX_SIGNAL_MEASUREMENT_MS);
+        long maxSignalMeasurementSessionSeconds = getLongSettingOrDefault("max_coverage_session_seconds", DEFAULT_MAX_SIGNAL_MEASUREMENT_MS);
 
-        // TODO: Hard coded URLs, later to be defined by pingServer table
-        final String hostname_v4 = "udpv4.netztest.at";
-        final String hostname_v6 = "udpv6.netztest.at";
-        final String port = String.valueOf(444);
+        log.info("UDP-Country = {}", countryIp);
 
-        // TODO Add code that takes the server settings from test_server HERE
-        //final List<TestServerResponseForSettings> serverUdpResponseList = testServerService.getServersUdp();
+        // Select the UDP test server by geoIP country.
+        TestServer rmbtUdpServer = testServerService.findActiveByServerTypeInAndCountry(List.of(ServerType.RMBTudp), countryIp, null);
 
-
-
-        String hostname;
+        final String sharedSecret = rmbtUdpServer.getKey();
         final boolean isV4Client = inetAddressIsv4(clientAddress);
-        // Integer equal to IP protocol version
-        final int protocolVersion = isV4Client ? 4 : 6;
+        final int protocolVersion = isV4Client ? 4 : 6; // IP protocol version
+        final String hostname = isV4Client ? rmbtUdpServer.getWebAddressIpV4() : rmbtUdpServer.getWebAddressIpV6();
+        final String port = rmbtUdpServer.getPort() != null ? rmbtUdpServer.getPort().toString() : DEFAULT_UDP_PORT;
 
-        if (isV4Client) {
-            hostname= hostname_v4;
-        }
-        else {
-            hostname = hostname_v6;
-        }
-
-        return CoverageSettingsResponse.builder()
+        return SignalMeasurementSettingsResponse.builder()
                 .provider(providerRepository.getProviderNameByTestId(savedTest.getUid()))
                 .clientRemoteIp(ip)
                 .testUUID(savedTest.getUuid())
@@ -204,95 +185,79 @@ public class SignalServiceImpl implements SignalService {
                 .pingHost(hostname)
                 .pingPort(port)
                 .ipVersion(protocolVersion)
+                .maxSignalMeasurementSeconds(maxSignalMeasurementSeconds)
+                .maxSignalMeasurementSessionSeconds(maxSignalMeasurementSessionSeconds)
+                .loopUUID(loopUuid)
+                .loopTestCounter(loopTestCounter)
                 .build();
     }
 
-    @Override
-    @Transactional
-    public SignalResultResponse processSignalResult(SignalResultRequest signalResultRequest) {
-        log.info("SignalResultRequest = " + signalResultRequest);
-        UUID testUuid = getTestUUID(signalResultRequest);
-
-        Long sequenceNumber = signalResultRequest.getSequenceNumber();
-
-        RtrClient client = clientRepository.findByUuid(signalResultRequest.getClientUUID())
-                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, signalResultRequest.getClientUUID())));
-
-        Test updatedTest = testRepository.findByUuidAndStatusesInLocked(testUuid, Config.SIGNAL_RESULT_STATUSES)
-                .orElseGet(() -> getEmptyGeneratedTest(signalResultRequest, client));
-        updatedTest.setStatus(TestStatus.SIGNAL);
-
-        if (Objects.isNull(sequenceNumber) || sequenceNumber <= updatedTest.getLastSequenceNumber()) {
-            throw new InvalidSequenceException();
-        }
-        updatedTest.setLastSequenceNumber(sequenceNumber.intValue());
-
-        testMapper.updateTestWithSignalResultRequest(signalResultRequest, updatedTest);
-
-        updateIpAddress(signalResultRequest.getTestIpLocal(), updatedTest);
-
-        processGeoLocation(signalResultRequest.getGeoLocations(), updatedTest);
-
-        processRadioInfo(signalResultRequest.getRadioInfo(), updatedTest);
-
-        log.info("Updated test before save = " + updatedTest);
-        testMapper.updateTestLocation(updatedTest);
-        testRepository.saveAndFlush(updatedTest);
-
-        UUID uuidToReturn = updatedTest.getUuid();
-        if (updatedTest.getTimestamp().plusMinutes(Constants.SIGNAL_CHANGE_UUID_AFTER_MIN)
-                .compareTo(Instant.now().atZone(updatedTest.getTimestamp().getZone())) < 0) {
-            log.info("updating signal uuid after " + Constants.SIGNAL_CHANGE_UUID_AFTER_MIN + " minutes");
-            uuidToReturn = UUID.randomUUID();
-        }
-
-        return SignalResultResponse.builder()
-                .testUUID(uuidToReturn)
-                .build();
+    private LoopModeSettings toLoopModeSettings(UUID loopUUID,UUID testUUID, UUID clientUUID, int testCounter) {
+        var loopModeSettings = new LoopModeSettings();
+        loopModeSettings.setLoopUuid(loopUUID);
+        loopModeSettings.setClientUuid(clientUUID);
+        loopModeSettings.setTestUuid(testUUID);
+        loopModeSettings.setTestCounter(testCounter);
+        loopModeSettings.setMaxDelay(null);
+        loopModeSettings.setMaxMovement(null);
+        loopModeSettings.setMaxTests(null);
+        loopModeSettings.setCertMode(null);
+        return loopModeSettings;
     }
 
 
     @Override
     @Transactional
-    public CoverageResultResponse processCoverageResult(CoverageResultRequest coverageResultRequest) {
-        log.info("CoverageResultRequest = " + coverageResultRequest);
-        UUID testUuid = getTestUUID(coverageResultRequest);
+    public void processSignalMeasurementResult(SignalMeasurementResultRequest signalMeasurementResultRequest,
+                                      HttpServletRequest httpServletRequest,
+                                      Map<String, String> headers) {
+        log.info("SignalMeasurementResultRequest = {}", signalMeasurementResultRequest);
+        UUID testUuid = getTestUUID(signalMeasurementResultRequest);
 
+        // Check if client uuid exists
+        findClientOrThrow(signalMeasurementResultRequest.getClientUUID());
 
-        RtrClient client = clientRepository.findByUuid(coverageResultRequest.getClientUUID())
-                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, coverageResultRequest.getClientUUID())));
-
-
-        Test updatedTest = testRepository.findByUuidAndStatusesInLocked(testUuid, Config.COVERAGE_RESULT_STATUSES)
-                .orElseGet(() -> getEmptyGeneratedTest(coverageResultRequest, client));
+        // Try to find test in correct started state or throw exception
+        Test updatedTest = testRepository.findByUuidAndStatusesInLocked(testUuid, Config.SIGNAL_MEASUREMENT_RESULT_STATUSES)
+                .orElseThrow(() -> new TestNotFoundException(String.format(ErrorMessage.STARTED_TEST_NOT_FOUND, testUuid)));
         updatedTest.setStatus(TestStatus.COVERAGE);
 
+        testMapper.updateTestWithSignalMeasurementResultRequest(signalMeasurementResultRequest, updatedTest);
 
-        testMapper.updateTestWithCoverageResultRequest(coverageResultRequest, updatedTest);
+        // write android permission statuses into test.android_permissions (jsonb)
+        Optional.ofNullable(signalMeasurementResultRequest.getPermissionStatuses())
+                .ifPresent(updatedTest::setAndroidPermissions);
 
-        updateIpAddress(coverageResultRequest.getTestIpLocal(), updatedTest);
+        // IP address as reported by the client for test.client_ip_local
+        updateIpAddress(signalMeasurementResultRequest.getTestIpLocal(), updatedTest);
 
+        // IP address as seen by the server for test.source_ip
+        setSourceIp(httpServletRequest, headers, updatedTest);
 
-        log.info("Updated test before save = " + updatedTest);
+        // If the public IP seen at the result submission (source_ip) differs from the one captured at the registration
+        // (client_public_ip), the client's network changed between register and result, so the
+        // register-time IP and everything derived from it are stale: null them out.
+        nullStaleClientPublicIpData(updatedTest);
+
+        // cellLocations
+        processCellLocation(signalMeasurementResultRequest.getCellLocations(), updatedTest);
+
+        // geoLocations
+        processGeoLocation(signalMeasurementResultRequest.getGeoLocations(), updatedTest);
+
+        // radioInfo (cells, signals)
+        processRadioInfo(signalMeasurementResultRequest.getRadioInfo(), updatedTest);
+
+        // If at least one fence is present, the test location is defined by the first
+        // (oldest, index 0) fence rather than by the geoLocations. The geoLocations are
+        // still stored above; only the test's representative position is overridden.
+        applyFenceLocation(signalMeasurementResultRequest.getFences(), updatedTest);
+
+        log.info("Updated test before save = {}", updatedTest);
         testMapper.updateTestLocation(updatedTest);
         testRepository.saveAndFlush(updatedTest);
 
-        processFences(coverageResultRequest.getFences(), updatedTest);
-
-        //TODO: UUID is no longer changed by backend
-        UUID uuidToReturn = updatedTest.getUuid();
-
-        if (updatedTest.getTimestamp().plusMinutes(Constants.SIGNAL_CHANGE_UUID_AFTER_MIN)
-                .compareTo(Instant.now().atZone(updatedTest.getTimestamp().getZone())) < 0) {
-            log.info("updating signal uuid after " + Constants.SIGNAL_CHANGE_UUID_AFTER_MIN + " minutes");
-            uuidToReturn = UUID.randomUUID();
-        }
-
-        return CoverageResultResponse.builder()
-                // TODO no uuid as result
-                .testUUID(uuidToReturn)
-                .build();
-
+        processFences(signalMeasurementResultRequest.getFences(), updatedTest);
     }
 
 
@@ -406,10 +371,44 @@ public class SignalServiceImpl implements SignalService {
         }
     }
 
+    private void processCellLocation(List<CellLocationRequest>  cellLocations, Test updatedTest) {
+        if (Objects.nonNull(cellLocations)) {
+            cellLocationService.saveCellLocationRequests(cellLocations, updatedTest);
+        }
+    }
+
     private void processFences(List<FencesRequest>  fences, Test updatedTest) {
         if (Objects.nonNull(fences)) {
             fencesService.processFencesRequests(fences, updatedTest);
         }
+    }
+
+    /**
+     * Defines the test's representative location from the first (oldest, index 0) fence, if any
+     * fence is present. Since a fence has no client {@code geo_location} of its own, a single
+     * geo_location row with a server-generated UUID is created from the fence center and assigned
+     * to the test (which also sets lat/long, accuracy and provider); the derived geometries are
+     * computed afterwards by {@code updateTestLocation}. Accuracy and provider are taken from the
+     * fence's nested location as-is (NULL when the client did not supply them — no default is
+     * invented). When no fence is present the location set from the geoLocations is left untouched.
+     */
+    private void applyFenceLocation(List<FencesRequest> fences, Test updatedTest) {
+        if (fences == null || fences.isEmpty()) {
+            return;
+        }
+        FencesRequest firstFence = fences.get(0);
+        SimpleLocationRequest location = firstFence.getLocation();
+        if (location == null || location.getLatitude() == null || location.getLongitude() == null) {
+            return;
+        }
+        // Derive the geo_location timestamp from the fence/test time: test time + fence offset
+        // (same derivation FencesServiceImpl uses for fence_time).
+        final ZonedDateTime fenceTime = updatedTest.getTime() == null
+                ? null
+                : updatedTest.getTime().plus(Objects.requireNonNullElse(firstFence.getOffsetMs(), 0L), ChronoUnit.MILLIS);
+        geoLocationService.createAndAssignGeoLocation(
+                updatedTest, location.getLatitude(), location.getLongitude(),
+                location.getAccuracy(), location.getProvider(), fenceTime);
     }
 
     private String getSignalStrength(RadioSignal signal) {
@@ -452,94 +451,78 @@ public class SignalServiceImpl implements SignalService {
             updatedTest.setClientIpLocalAnonymized(HelperFunctions.anonymizeIp(ipLocalAddress));
             updatedTest.setClientIpLocalType(HelperFunctions.IpType(ipLocalAddress));
 
-            InetAddress ipPublicAddress = InetAddresses.forString(updatedTest.getClientPublicIp());
-            updatedTest.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+            // clientPublicIp might be null, avoid NullPointerException
+            String clientPublicIp = updatedTest.getClientPublicIp();
+            if (clientPublicIp != null) {
+                InetAddress ipPublicAddress = InetAddresses.forString(clientPublicIp);
+                updatedTest.setNatType(HelperFunctions.getNatType(ipLocalAddress, ipPublicAddress));
+            }
         }
     }
 
-    private UUID getTestUUID(SignalResultRequest signalResultRequest) {
-        if (Objects.nonNull(signalResultRequest.getTestUUID())) {
-            return signalResultRequest.getTestUUID();
+    // TODO: Refactor with/in HeaderExtrudeUtil
+    // - ResultServiceImpl.setSourceIp(...)
+    // - SignalServiceImpl.setSourceIp(...)
+    // - SignalServiceImpl.processSignalMeasurementRequest(...) (clientPublicIp part)
+    private void setSourceIp(HttpServletRequest httpServletRequest, Map<String, String> headers, Test test) {
+        InetAddress sourceAddress = InetAddresses.forString(
+                HeaderExtrudeUtil.getIpFromNgNixHeader(httpServletRequest, headers));
+        test.setSourceIp(InetAddresses.toAddrString(sourceAddress));
+        test.setSourceIpAnonymized(HelperFunctions.anonymizeIp(sourceAddress));
+    }
+
+    /**
+     * Clears {@code client_public_ip} and every field derived from it at /coverageRequest when the
+     * result-time {@code source_ip} differs — i.e. the client's apparent public IP changed between
+     * register and result, making the register-time IP and its geo/ASN/rDNS data unreliable.
+     */
+    private void nullStaleClientPublicIpData(Test test) {
+        final String clientPublicIp = test.getClientPublicIp();
+        final String sourceIp = test.getSourceIp();
+        if (clientPublicIp == null || sourceIp == null || clientPublicIp.equals(sourceIp)) {
+            return;
+        }
+        log.info("source_ip ({}) differs from client_public_ip ({}); nulling stale register-time IP data for test {}",
+                sourceIp, clientPublicIp, test.getUuid());
+        test.setClientPublicIp(null);
+        test.setClientPublicIpAnonymized(null);
+        test.setPublicIpRdns(null);
+        test.setCountryGeoip(null);
+        test.setPublicIpAsName(null);
+        test.setCountryAsn(null);
+        test.setPublicIpAsn(null);
+    }
+
+    private RtrClient findClientOrThrow(UUID clientUuid) {
+        return clientRepository.findByUuid(clientUuid)
+                .orElseThrow(() -> new ClientNotFoundException(String.format(ErrorMessage.CLIENT_NOT_FOUND, clientUuid)));
+    }
+
+    /** Reads a numeric {@code settings} value (language-agnostic) by key, falling back to a default. */
+    long getLongSettingOrDefault(final String key, final long defaultValue) {
+        return settingsRepository.findFirstByKeyAndLangIsNullOrKeyAndLangOrderByLang(key, key, null)
+                .map(Settings::getValue)
+                .map(Long::parseLong)
+                .orElse(defaultValue);
+    }
+
+    private UUID getTestUUID(SignalMeasurementResultRequest signalMeasurementResultRequest) {
+        if (Objects.nonNull(signalMeasurementResultRequest.getTestUUID())) {
+            return signalMeasurementResultRequest.getTestUUID();
         } else {
-            if (signalResultRequest.getSequenceNumber() != 0) {
+            if (signalMeasurementResultRequest.getSequenceNumber() != 0) {
                 throw new InvalidSequenceException();
             }
             return uuidGenerator.generateUUID();
         }
     }
 
-    private UUID getTestUUID(CoverageResultRequest coverageResultRequest) {
-        if (Objects.nonNull(coverageResultRequest.getTestUUID())) {
-            return coverageResultRequest.getTestUUID();
-        } else {
-            if (coverageResultRequest.getSequenceNumber() != 0) {
-                throw new InvalidSequenceException();
-            }
-            return uuidGenerator.generateUUID();
-        }
-    }
-
-    private Test getEmptyGeneratedTest(SignalResultRequest signalResultRequest, RtrClient client) {
-        Test newTest = Test.builder()
-                .uuid(uuidGenerator.generateUUID())
-                .openTestUuid(uuidGenerator.generateUUID())
-                .time(getClientTimeFromSignalResultRequest(signalResultRequest))
-                .timezone(signalResultRequest.getTimezone())
-                .client(client)
-                .useSsl(false)
-                .lastSequenceNumber(-1)
-                .build();
-
-        return testRepository.saveAndFlush(newTest);
-    }
-
-    private Test getEmptyGeneratedTest(CoverageResultRequest coverageResultRequest, RtrClient client) {
-        Test newTest = Test.builder()
-                .uuid(uuidGenerator.generateUUID())
-                .openTestUuid(uuidGenerator.generateUUID())
-                .time(getClientTimeFromCoverageResultRequest(coverageResultRequest))
-                .timezone(coverageResultRequest.getTimezone())
-                .client(client)
-                .useSsl(false)
-                .lastSequenceNumber(-1)
-                .build();
-
-        return testRepository.saveAndFlush(newTest);
-    }
-
-    private ZonedDateTime getClientTimeFromSignalResultRequest(SignalResultRequest signalResultRequest) {
-        return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(signalResultRequest.getTimeNanos() / 1e6), signalResultRequest.getTimezone());
-    }
-
-    private ZonedDateTime getClientTimeFromCoverageResultRequest(CoverageResultRequest coverageResultRequest) {
-        if (coverageResultRequest.getTimezone() == null)
-            return null;
-        else {
-            return TimeUtils.getZonedDateTimeFromMillisAndTimezone(Math.round(coverageResultRequest.getTimeNanos() / 1e6), coverageResultRequest.getTimezone());
-        }
-    }
-
-
-    private ZonedDateTime getClientTimeFromSignalRequest(SignalRegisterRequest signalRegisterRequest) {
+    private ZonedDateTime getClientTimeFromSignalRequest(SignalMeasurementRegisterRequest signalRegisterRequest) {
         return TimeUtils.getZonedDateTimeFromMillisAndTimezone(signalRegisterRequest.getTime(), signalRegisterRequest.getTimezone());
-    }
-
-    private ZonedDateTime getClientTimeFromSignalRequest(CoverageRegisterRequest signalRegisterRequest) {
-        return TimeUtils.getZonedDateTimeFromMillisAndTimezone(signalRegisterRequest.getTime(), signalRegisterRequest.getTimezone());
-    }
-
-    private String getSignalResultUrl(HttpServletRequest req) {
-        return Optional.ofNullable(req.getHeader(URL))
-                .map(url -> String.join(URL, SIGNAL_RESULT))
-                .orElse(getDefaultResultUrl(req));
-    }
-
-    private String getDefaultResultUrl(HttpServletRequest req) {
-        return String.format("%s://%s:%s%s", req.getScheme(), req.getServerName(), req.getServerPort(), req.getRequestURI())
-                .replace("Request", "Result");
     }
 
     // Utility: Hex encoding for debug prints
+    @SuppressWarnings("unused")
     private static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
@@ -558,10 +541,7 @@ public class SignalServiceImpl implements SignalService {
     // Utility to distinguish between IPv4 and IPv6 addresses
     private static boolean inetAddressIsv4(InetAddress ip) {
 
-        if (ip instanceof Inet4Address) {
-            return true;
-        }
-        return false;
+        return ip instanceof Inet4Address;
     }
 
         private static String generatePingToken(String sharedSecret, InetAddress ip)  {
@@ -603,11 +583,10 @@ public class SignalServiceImpl implements SignalService {
         // byte[] timeBytes = Arrays.copyOfRange(timeBuffer8.array(), 1, 8);
 
         // Print current time for debugging (similar to Python)
-        // TODO: Use correct logging, not print (or remove code)
-        LocalDateTime dateTime = LocalDateTime.ofEpochSecond(nowSeconds, 0, ZoneOffset.UTC);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        System.out.println("Current time: " + dateTime.format(formatter));
-        System.out.println("time hex: " + bytesToHex(timeBytes));
+        // LocalDateTime dateTime = LocalDateTime.ofEpochSecond(nowSeconds, 0, ZoneOffset.UTC);
+        // DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        // System.out.println("Current time: " + dateTime.format(formatter));
+        // System.out.println("time hex: " + bytesToHex(timeBytes));
 
         // HMAC-SHA256 with seed as key (take first 8 bytes of digest)
         // in src/main/java/at/rtr/rmbt/facade/TestSettingsFacade.java
@@ -617,7 +596,7 @@ public class SignalServiceImpl implements SignalService {
         // First hmac - general check (seed, time) with length 8 bytes
         final byte[] packetHashTime = HelperFunctions.calculateSha256HMAC(sharedSecret.getBytes(), timeBytes);
         final byte[] packetHashTime8 = firstNBytes(packetHashTime, 8);
-        System.out.println("hmac (in hex): " + bytesToHex(packetHashTime8));
+        // System.out.println("hmac (in hex): " + bytesToHex(packetHashTime8));
 
         // Second hmac - check for source IP
         final byte[] packetHashIp = HelperFunctions.calculateSha256HMAC(sharedSecret.getBytes(), timeBytes, ipBytes);
@@ -629,13 +608,6 @@ public class SignalServiceImpl implements SignalService {
         dataBuffer.put(packetHashTime8); // 8 bytes
         dataBuffer.put(packetHashIp4); // 4 bytes
         byte[] token = dataBuffer.array();
-
-        // Print results
-        System.out.println("Original token (in hex): " + bytesToHex(token));
-        String b64Token = Base64.getEncoder().encodeToString(token);
-        System.out.println("Token (Base64): " + b64Token);
-
-        return b64Token;
-
+        return Base64.getEncoder().encodeToString(token);
     }
 }

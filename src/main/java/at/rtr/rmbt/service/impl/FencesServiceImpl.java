@@ -10,6 +10,8 @@ import at.rtr.rmbt.service.FencesService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -23,19 +25,20 @@ public class FencesServiceImpl implements FencesService {
 
     @Override
     public void processFencesRequests(Collection<FencesRequest> fences, Test test) {
+        final List<Fences> newFences = new ArrayList<>();
 
-
-        List<Fences> newFences = new ArrayList<>();
-
-        test.setFencesCount(1L);
+        long fenceCount = 0L;
         for (FencesRequest fence : fences) {
-            // increase fences count with each fence
-            Fences newFence = fencesMapper.fencesRequestToFences(fence, test);
-            test.setFencesCount(test.getFencesCount() + 1L);
+            final Fences newFence = fencesMapper.fencesRequestToFences(fence, test);
+            // assign the 0-based fence id from the running counter
+            newFence.setFenceId(fenceCount);
+            // set fenceTime to test timestamp plus offset
+            newFence.setFenceTime(test.getTime().plus(fence.getOffsetMs(), ChronoUnit.MILLIS));
             newFences.add(newFence);
-
+            fenceCount++;
         }
 
+        test.setFencesCount(fenceCount);
         fencesRepository.saveAll(newFences);
     }
 }
